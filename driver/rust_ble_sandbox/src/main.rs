@@ -32,9 +32,24 @@ async fn detect_devices(central: &Adapter) {
         let address = properties.address;
         let maybe_name = properties.local_name;
 
-        match maybe_name {
+        match maybe_name.to_owned() {
             Some(name) => println!("Found {} ({})", address, name),
             None => println!("Found {}", address),
+        }
+
+
+        if maybe_name == Some(String::from("MotionController")) {
+            let _ = p.connect().await;
+
+            match p.is_connected().await {
+                Ok(true) => {
+                    for c in p.characteristics().iter() {
+                        println!(" with characteristic {}", c.uuid.to_string());
+                    }
+                    let _ = p.disconnect().await;
+                },
+                _ => (),
+            }
         }
     }
 }
