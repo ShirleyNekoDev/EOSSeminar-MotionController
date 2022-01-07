@@ -26,13 +26,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
         listen_for_updates(&controller_peripheral, characteristic).await?;
     }
 
+    let _ = controller_peripheral.disconnect().await?;
+
     Ok(())
 }
 
 async fn listen_for_updates(controller: &Peripheral, characteristic: &Characteristic) -> Result<(), Box<dyn Error>> {
     controller.subscribe(characteristic).await?;
     // let update_stream = controller.notifications().await?;
-    let mut notification_stream = controller.notifications().await?.take(1);
+    let mut notification_stream = controller.notifications().await?.take(16);
     // Process while the BLE connection is not broken or stopped.
     while let Some(data) = notification_stream.next().await {
         println!(
@@ -40,6 +42,7 @@ async fn listen_for_updates(controller: &Peripheral, characteristic: &Characteri
             data.uuid, data.value
         );
     }
+    controller.unsubscribe(characteristic).await?;
     Ok(())
 }
 
@@ -69,31 +72,3 @@ async fn find_motion_controller(central: &Adapter) -> Option<Peripheral> {
     }
     return None;
 }
-
-// async fn detect_devices(central: &Adapter) {
-//     for p in central.peripherals().await.unwrap() {
-//         let properties = p.properties().await.unwrap().unwrap();
-//         let address = properties.address;
-//         let maybe_name = properties.local_name;
-
-//         match maybe_name.to_owned() {
-//             Some(name) => println!("Found {} ({})", address, name),
-//             None => println!("Found {}", address),
-//         }
-
-
-//         if maybe_name == Some(String::from("DIYMotionController")) {
-//             let _ = p.connect().await;
-
-//             match p.is_connected().await {
-//                 Ok(true) => {
-//                     for c in p.characteristics().iter() {
-//                         println!(" with characteristic {}", c.uuid.to_string());
-//                     }
-//                     let _ = p.disconnect().await;
-//                 },
-//                 _ => (),
-//             }
-//         }
-//     }
-// }
