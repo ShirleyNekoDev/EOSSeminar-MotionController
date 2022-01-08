@@ -1,6 +1,7 @@
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 #include "esp_log.h"
 
+#include "pin_definitions.h"
 #include "version.h"
 #include <Arduino.h>
 #include <Wire.h>
@@ -26,7 +27,7 @@ void setup() {
   ESP_LOGI(TAG, "Starting up firmware v%i.%i...", VERSION_MAJOR, VERSION_MINOR);
 
   // Initialize I2C Port
-  if (!Wire.begin(static_cast<int>(9), static_cast<int>(10),
+  if (!Wire.begin(static_cast<int>(PIN_I2C_SDA), static_cast<int>(PIN_I2C_SCL),
                   static_cast<uint32_t>(400000))) {
     ESP_LOGE(TAG, "Initialization of I2C Bus failed");
   }
