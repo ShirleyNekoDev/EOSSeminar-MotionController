@@ -18,3 +18,9 @@
 5. Run `cmake ..`
 6. Run `make <TARGET>`
 7. Upload via `make upload TARGET=<TARGET> SERIAL_PORT=<PORT>` (find via `arduino-cli board list`)
+
+# Caveats
+
+## I2C
+
+Seems not to be working with all GPIO pins. A working pair (SDA/SCL) of pins for the ESP32-C3 Dev Module we use were pins 9 and 10.
