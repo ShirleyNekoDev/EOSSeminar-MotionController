@@ -1,4 +1,4 @@
-#include "math_utils.cpp"
+#include "math_utils.h"
 
 void service_joystick_read_status(Vec2& joystick_status) {
   // TODO

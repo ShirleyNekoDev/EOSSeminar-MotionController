@@ -2,7 +2,17 @@ cmake_minimum_required(VERSION 3.0.0)
 
 project(firmware_v1 CXX)
 
-add_executable(firmware_v1 main.cpp)
+add_subdirectory(services)
+
+add_executable(firmware_v1
+    main.cpp
+    math_utils.cpp
+)
+target_include_directories(firmware_v1 PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(firmware_v1 PRIVATE v1_services)
 
 # Arduino.h is included in hello_world.cpp, so link with Arduino core
 # if, say, we included Wire.h, we would add "Wire" here as library to link

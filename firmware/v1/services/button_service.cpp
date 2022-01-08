@@ -1,5 +1,5 @@
 #include <cstdint>
-#include "math_utils.cpp"
+#include "math_utils.h"
 
 // struct ControllerButtonStatus { // 1 Byte
 //   bool x: 1;
