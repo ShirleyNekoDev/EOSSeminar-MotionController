@@ -4,8 +4,10 @@ use std::error::Error;
 use std::option::Option;
 use std::time::Duration;
 use tokio::time;
+use uuid::Uuid;
 use futures::stream::StreamExt;
 
+const DIYMOTIONCONTROLLER_SERVICE_UUID: &str = "328c9225-877f-4189-89a8-b50bb21b02ae";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -48,7 +50,8 @@ async fn listen_for_updates(controller: &Peripheral, characteristic: &Characteri
 
 async fn wait_for_motion_controller(central: &Adapter) -> Peripheral {
     // start scanning for devices
-    central.start_scan(ScanFilter::default()).await.unwrap();
+    let scan_filter = ScanFilter { services: vec![Uuid::parse_str(DIYMOTIONCONTROLLER_SERVICE_UUID).unwrap()] };
+    central.start_scan(scan_filter).await.unwrap();
     loop {
         match find_motion_controller(central).await {
             Some(peripheral) => {

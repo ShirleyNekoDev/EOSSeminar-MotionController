@@ -535,6 +535,7 @@ dependencies = [
  "btleplug",
  "futures",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
