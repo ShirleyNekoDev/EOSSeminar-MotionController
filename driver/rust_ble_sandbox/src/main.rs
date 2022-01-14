@@ -3,7 +3,7 @@ use btleplug::platform::{Adapter, Manager, Peripheral};
 use tokio_stream::wrappers::IntervalStream;
 use std::error::Error;
 use std::option::Option;
-use std::time::Duration;
+use std::time::{SystemTime, Duration, UNIX_EPOCH};
 use tokio::time;
 use uuid::Uuid;
 use futures::stream::StreamExt;
@@ -75,7 +75,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let interval = tokio::time::interval(Duration::from_secs(1));
     let interval_stream = IntervalStream::new(interval);
     let mut notification_stream = interval_stream.map(move |_| {
-        ValueNotification { value: vec![42], uuid: Uuid::nil() }
+        let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+        ValueNotification { value: ts.to_ne_bytes().to_vec(), uuid: Uuid::nil() }
     });
 
     loop {
