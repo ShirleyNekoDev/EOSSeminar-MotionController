@@ -28,6 +28,9 @@ fn on_ws_message(msg: Message, _controller_write_method: fn(Uuid, Vec<u8>)) {
             ClientCommand::RumbleStart => {
 
             },
+            ClientCommand::RumbleBurst { length: _ } => {
+
+            },
         }
     }
 }
