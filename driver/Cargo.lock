@@ -247,13 +247,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dmc"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "dmc_daemon"
 version = "0.1.0"
 dependencies = [
  "bincode",
  "btleplug",
+ "dmc",
  "futures",
- "serde",
  "tokio",
  "tokio-stream",
  "tokio-tungstenite",

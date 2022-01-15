@@ -10,24 +10,11 @@ use futures::stream::StreamExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{accept_async, WebSocketStream, tungstenite::Error as TError};
 use tungstenite::Message;
-use serde::{Serialize, Deserialize};
+
+use dmc::{ClientCommand, ClientUpdate};
 
 
 const DIYMOTIONCONTROLLER_SERVICE_UUID: &str = "328c9225-877f-4189-89a8-b50bb21b02ae";
-
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
-enum ClientCommand {
-    LedSet { r: u8, g: u8, b: u8 },
-    RumbleStart,
-    RumbleStop,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
-enum ClientUpdate {
-
-}
 
 fn on_ws_message(msg: Message, _controller_write_method: fn(Uuid, Vec<u8>)) {
     if let Message::Binary(data) = msg {
