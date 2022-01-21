@@ -254,6 +254,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "dmc_client"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "dmc",
+]
+
+[[package]]
 name = "dmc_daemon"
 version = "0.1.0"
 dependencies = [

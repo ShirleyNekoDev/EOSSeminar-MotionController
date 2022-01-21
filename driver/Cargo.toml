@@ -1,5 +1,6 @@
 [workspace]
 members = [
     "dmc",
+    "dmc_client",
     "dmc_daemon"
 ]
