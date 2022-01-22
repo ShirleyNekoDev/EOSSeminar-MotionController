@@ -1,4 +1,4 @@
-#include <cstdint>
+#include <stdint.h>
 
 const uint16_t RUMBLE_BURST_LENGTH_SHORT = 250; // in ms
 const uint16_t RUMBLE_BURST_LENGTH_LONG = 750; // in ms

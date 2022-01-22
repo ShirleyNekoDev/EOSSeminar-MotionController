@@ -1,7 +1,7 @@
 #ifndef MATH_UTILS_H__
 #define MATH_UTILS_H__
 
-#include <cstdint>
+#include <stdint.h>
 
 uint16_t pack_float(float value);
 

@@ -3,6 +3,7 @@
 
 #include "ble_manager.h"
 #include "pin_definitions.h"
+#include "services/joystick_service.h"
 #include "version.h"
 #include <Arduino.h>
 #include <Wire.h>

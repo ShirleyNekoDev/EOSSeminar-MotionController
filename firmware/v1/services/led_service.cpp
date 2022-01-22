@@ -1,4 +1,4 @@
-#include <cstdint>
+#include <stdint.h>
 
 enum LedBlinkMode {
   ONCE = 1,
