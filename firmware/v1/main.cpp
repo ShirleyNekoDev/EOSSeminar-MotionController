@@ -1,6 +1,7 @@
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 #include "esp_log.h"
 
+#include "ble_manager.h"
 #include "pin_definitions.h"
 #include "version.h"
 #include <Arduino.h>
@@ -35,6 +36,9 @@ void setup() {
 
   // Check connection to BMI160 IMU
   checkIMUConnection();
+
+  // Setup bluetooth
+  dcm::ble::start();
 
   ESP_LOGI(TAG, "Setup complete. Now entering Arduino Core loop.");
 }

@@ -7,6 +7,7 @@ add_subdirectory(services)
 add_executable(firmware_v1
     main.cpp
     math_utils.cpp
+    ble_manager.cpp
 )
 target_include_directories(firmware_v1 PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include

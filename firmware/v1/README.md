@@ -43,6 +43,7 @@ https://development.libelium.com/ble-networking-guide/default-profile-on-ble-mod
 chrome://bluetooth-internals/
 
 Battery Service -> Battery Level
+00002a19-0000-1000-8000-00805f9b34fb Battery Level
 
 - https://www.bluetooth.com/specifications/specs/
 - https://www.bluetooth.com/specifications/assigned-numbers/
@@ -54,3 +55,13 @@ Battery Service -> Battery Level
 - https://embeddedcentric.com/lesson-2-ble-profiles-services-characteristics-device-roles-and-network-topology/
 - https://devzone.nordicsemi.com/guides/short-range-guides/b/bluetooth-low-energy/posts/ble-services-a-beginners-tutorial
 - https://devzone.nordicsemi.com/guides/short-range-guides/b/bluetooth-low-energy/posts/ble-characteristics-a-beginners-tutorial
+
+
+# Porject-Specific Services & Characteristics
+
+- BatteryService
+
+- DIYMotionControllerService (`21aa4893-f368-46b5-977e-cdfc93555aaf`)
+    - ClassicControlsCharacteristic (Button and Joystick) (`0385fe9d-56a6-40a4-b055-9b610cfcfe0c`)
+    - FeedbackCharacteristic (LED & Rumble) (`2f99ce60-cafe-4e44-9633-5bb3aea5d6c1`)
+    - MotionControlsCharacteristic (Orientation and Acceleration) (`e4b0e66b-f9ac-424b-ae72-59f7fbadf871`)
