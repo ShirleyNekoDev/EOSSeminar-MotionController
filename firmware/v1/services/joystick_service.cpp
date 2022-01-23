@@ -1,5 +1,5 @@
 #include "services/joystick_service.h"
-#include "board_definitons.h"
+#include "board_definitions.h"
 #include "math_utils.h"
 
 #include <Arduino.h>
