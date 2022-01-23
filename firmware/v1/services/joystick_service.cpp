@@ -4,7 +4,6 @@
 
 #include <Arduino.h>
 
-#define ADC_BIT_RESOLUTION 10
 #define ADC_MIN_VALUE 0
 #define ADC_MAX_VALUE ((1 << ADC_BIT_RESOLUTION) - 1)
 
