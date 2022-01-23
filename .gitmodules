@@ -1,3 +1,6 @@
 [submodule "firmware/arduino-toolchain"]
 	path = firmware/arduino-toolchain
 	url = https://github.com/a9183756-gh/Arduino-CMake-Toolchain.git
+[submodule "firmware/libraries/Bounce2"]
+	path = firmware/libraries/Bounce2
+	url = https://github.com/thomasfredericks/Bounce2
