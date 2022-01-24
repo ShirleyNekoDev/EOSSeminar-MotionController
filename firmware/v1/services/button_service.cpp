@@ -1,23 +1,48 @@
+#include "services/button_service.h"
+#include "board_definitions.h"
 #include "math_utils.h"
-#include <stdint.h>
+#include <Bounce2.h>
 
-// struct ControllerButtonStatus { // 1 Byte
-//   bool x: 1;
-//   bool y: 1;
-//   bool a: 1;
-//   bool b: 1;
-//   bool start: 1;
-//   bool menu: 1;
-// };
-struct ButtonStatus {
-  uint16_t trigger;
-  bool a: 1;
-  bool menu: 1;
-};
+namespace dmc {
 
-void service_button_read_status(ButtonStatus& button_status) {
-  // TODO
-  button_status.trigger = pack_float(0.0f);
-  button_status.a = false;
-  button_status.menu = false;
+namespace button {
+namespace {
+
+Bounce2::Button button_a;
+Bounce2::Button button_b;
+Bounce2::Button button_menu;
+
+} // namespace
+
+void start() {
+  button_a.attach(PIN_BUTTON_A, INPUT_PULLUP);
+  button_b.attach(PIN_BUTTON_B, INPUT_PULLUP);
+  button_menu.attach(PIN_BUTTON_MENU, INPUT_PULLUP);
 }
+
+void refresh() {
+  // TODO do important stuff
+  button_a.update();
+  button_b.update();
+  button_menu.update();
+}
+bool read_status(Status &button_status) {
+  bool update_occurred = false;
+  if (button_status.a != button_a.isPressed()) {
+    update_occurred = true;
+  }
+
+  if (button_status.b != button_b.isPressed()) {
+    update_occurred = true;
+  }
+
+  if (button_status.menu != button_menu.isPressed()) {
+    update_occurred = true;
+  }
+
+  return update_occurred;
+}
+
+} // namespace button
+
+} // namespace dmc
