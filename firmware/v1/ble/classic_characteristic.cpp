@@ -4,6 +4,7 @@
 #include "constants.h"
 #include "services/button_service.h"
 #include "services/joystick_service.h"
+#include <assert.h>
 
 static const char *TAG = "CLASSIC_CH";
 #include "esp_log.h"
@@ -14,7 +15,10 @@ namespace ble {
 
 ClassicControlsCharacteristic::ClassicControlsCharacteristic()
     : dmc::ble::DMCCharacteristic("ClassicControls", CLASSIC_CH_UUID, true,
-                                  false, true) {}
+                                  false, true) {
+  static_assert(sizeof(buffer_) < 20,
+                "Bluetooth notifications cannot exceed 20 bytes");
+}
 void ClassicControlsCharacteristic::update(button::Status &button_status,
                                            joystick::Status &joystick_status) {
   buffer_.button_status = button_status;
