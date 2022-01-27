@@ -1,11 +1,17 @@
 #include "services/button_service.h"
+
 #include "board_definitions.h"
 #include "math_utils.h"
 #include <Bounce2.h>
 
+#include "esp_log.h"
+
+static const char *TAG = "BUTTON_SERVICE";
+
 namespace dmc {
 
 namespace button {
+
 namespace {
 
 Bounce2::Button button_a;
@@ -21,7 +27,6 @@ void start() {
 }
 
 void refresh() {
-  // TODO do important stuff
   button_a.update();
   button_b.update();
   button_menu.update();
@@ -29,15 +34,25 @@ void refresh() {
 bool read_status(Status &button_status) {
   bool update_occurred = false;
   if (button_status.a != button_a.isPressed()) {
+    ESP_LOGD(TAG, "The state of button A has changed.");
     update_occurred = true;
+    button_status.a = button_a.isPressed();
   }
 
   if (button_status.b != button_b.isPressed()) {
+    ESP_LOGD(TAG, "The state of button B has changed.");
     update_occurred = true;
+    button_status.b = button_b.isPressed();
   }
 
   if (button_status.menu != button_menu.isPressed()) {
+    ESP_LOGD(TAG, "The state of the MENU button has changed.");
     update_occurred = true;
+    button_status.menu = button_menu.isPressed();
+  }
+
+  if (update_occurred) {
+    ESP_LOGD(TAG, "An update occured.");
   }
 
   return update_occurred;

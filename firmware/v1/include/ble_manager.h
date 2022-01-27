@@ -1,14 +1,28 @@
 #ifndef BLE_MANAGER_H__
 #define BLE_MANAGER_H__
 
-namespace dcm {
+#include <BLE2902.h>
+#include <BLECharacteristic.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+
+#include "esp_log.h"
+
+namespace dmc {
 
 namespace ble {
 
-void start(void);
+namespace {
+extern bool clientConnected;
+}
 
+void initialize();
+void start();
+
+BLEService *get_dmc_service();
 } // namespace ble
 
-} // namespace dcm
+} // namespace dmc
 
 #endif

@@ -1,8 +1,11 @@
+#define BLE_ENABLED
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 #include "esp_log.h"
 
+#include "ble/classic_characteristic.h"
 #include "ble_manager.h"
 #include "board_definitions.h"
+#include "services/button_service.h"
 #include "services/joystick_service.h"
 #include "version.h"
 #include <Arduino.h>
@@ -22,6 +25,14 @@ void checkIMUConnection() {
   ESP_LOGD(TAG, "BMI160 connection successful.");
 }
 
+using namespace dmc;
+
+namespace {
+button::Status button_status;
+joystick::Status joystick_status;
+ble::ClassicControlsCharacteristic *cc_ch;
+} // namespace
+
 void setup() {
   // Initialize logging
   esp_log_level_set(TAG, LOG_LOCAL_LEVEL);
@@ -38,12 +49,44 @@ void setup() {
   // Check connection to BMI160 IMU
   checkIMUConnection();
 
-  // Setup bluetooth
-  dcm::ble::start();
+  // Setup buttons
+  button::start();
+
+  // Setup joystick
+  joystick::start();
+
+  // Initialize bluetooth
+  ble::initialize();
+
+  // Start the characteristics
+  cc_ch = new ble::ClassicControlsCharacteristic();
+
+  ble::start();
 
   ESP_LOGI(TAG, "Setup complete. Now entering Arduino Core loop.");
 }
 
-void loop() {
 
+void loop() {
+  { // Classic controls
+    button::refresh();
+    joystick::refresh();
+    bool update_required = false;
+    if (button::read_status(button_status)) {
+      update_required = true;
+    }
+    if (joystick::read_status(joystick_status)) {
+      update_required = true;
+    }
+
+    if (update_required) {
+      cc_ch->update(button_status, joystick_status);
+    }
+  }
+
+  delay(5);
+
+  // TODO build an abstraction for state management
+  // TODO switch between device states CONNECTED and PAIRING in reaction to
+  // events from the BLEServer Callback handlers
 }

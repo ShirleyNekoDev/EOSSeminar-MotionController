@@ -18,7 +18,7 @@ add_library(button_service_v1
 target_include_directories(button_service_v1 PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
-target_link_arduino_libraries(button_service_v1 PUBLIC core Bounce2)
+target_link_arduino_libraries(button_service_v1 PUBLIC Bounce2 core)
 
 # joystick service
 add_library(joystick_service_v1

@@ -21,6 +21,10 @@ struct Status {
   bool menu : 1;
 };
 
+void start();
+
+void refresh();
+
 bool read_status(Status &button_status);
 }
 

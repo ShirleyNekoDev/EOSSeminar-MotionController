@@ -8,13 +8,15 @@ namespace dmc {
 
 namespace joystick {
 
+using Status = Vec2;
+
 void start();
 void refresh();
 
 float get_x();
 float get_y();
 
-void read_status(Vec2 &joystick_status);
+bool read_status(Vec2 &joystick_status);
 
 } // namespace joystick
 

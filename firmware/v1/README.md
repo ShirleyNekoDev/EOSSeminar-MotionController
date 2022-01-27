@@ -57,7 +57,7 @@ Battery Service -> Battery Level
 - https://devzone.nordicsemi.com/guides/short-range-guides/b/bluetooth-low-energy/posts/ble-characteristics-a-beginners-tutorial
 
 
-# Porject-Specific Services & Characteristics
+# Project-Specific Services & Characteristics
 
 - BatteryService
 
