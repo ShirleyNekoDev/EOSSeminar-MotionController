@@ -1,7 +1,7 @@
 # Requirements
 
 - Arduino toolchain (or arduino-cli)
-- Esp32 dev board definitions
+- ESP32 dev board definitions
   1. `arduino-cli config init`
   2. in `arduino-cli.yaml` add `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_dev_index.json` to `additional_urls`
   3. `arduino-cli core install esp32:esp32`
@@ -24,3 +24,8 @@
 ## I2C
 
 Seems not to be working with all GPIO pins. A working pair (SDA/SCL) of pins for the ESP32-C3 Dev Module we use were pins 9 and 10.
+When they are pulled up though, for some reason esptool cannot connect to the ESP anymore and you have to pull them out to flash the controller.
+
+## BLE Library
+
+The size of the initial value you set a characteristic to determines the maximum size it can ever have. So make sure you make it the right size.
