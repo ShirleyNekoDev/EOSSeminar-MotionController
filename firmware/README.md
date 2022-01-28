@@ -24,7 +24,6 @@
 ## I2C
 
 Seems not to be working with all GPIO pins. A working pair (SDA/SCL) of pins for the ESP32-C3 Dev Module we use were pins 9 and 10.
-When they are pulled up though, for some reason esptool cannot connect to the ESP anymore and you have to pull them out to flash the controller.
 
 ## BLE Library
 

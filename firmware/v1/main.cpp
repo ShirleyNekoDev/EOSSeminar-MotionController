@@ -40,6 +40,8 @@ void setup() {
   ESP_LOGI(TAG, "Starting up firmware v%i.%i...", VERSION_MAJOR, VERSION_MINOR);
 
   // Initialize I2C Port
+  pinMode(PIN_I2C_SDA, INPUT_PULLUP);
+  pinMode(PIN_I2C_SCL, INPUT_PULLUP);
   if (!Wire.begin(static_cast<int>(PIN_I2C_SDA), static_cast<int>(PIN_I2C_SCL),
                   static_cast<uint32_t>(400000))) {
     ESP_LOGE(TAG, "Initialization of I2C Bus failed");
