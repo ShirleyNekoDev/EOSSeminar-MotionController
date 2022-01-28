@@ -20,5 +20,6 @@
 
 // ------ HARDWARE_CONSTANTS ------
 #define ADC_BIT_RESOLUTION 12
+#define BOARD_BAUDRATE 115200
 
 #endif

@@ -2,6 +2,7 @@
 #include "ble_abstraction.h"
 #include "constants.h"
 
+#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "esp_log.h"
 static const char *TAG = "BLE_MANAGER";
 
@@ -26,8 +27,9 @@ public:
     clientConnected = true;
     // TODO initiate state change somehow
   }
-  void onDisconnect(BLEServer *) override {
+  void onDisconnect(BLEServer *server) override {
     clientConnected = false;
+    server->startAdvertising();
     // TODO initiate state change somehow
   }
 };
@@ -36,6 +38,7 @@ public:
 BLEService *get_dmc_service() { return dmc_service; }
 
 void initialize() {
+  esp_log_level_set(TAG, LOG_LOCAL_LEVEL);
   ESP_LOGD(TAG, "Initializing BLE.");
 
   BLEDevice::init(DEVICE_NAME);
@@ -53,7 +56,8 @@ void start() {
 }
 
 DMCCharacteristic::DMCCharacteristic(const char *name, const char *uuid,
-                                     bool read, bool write, bool notify)
+                                     bool read, bool write, bool notify,
+                                     size_t data_size)
     : name_{name} {
   properties_ = 0;
   if (read)
@@ -64,16 +68,16 @@ DMCCharacteristic::DMCCharacteristic(const char *name, const char *uuid,
     properties_ |= BLECharacteristic::PROPERTY_NOTIFY;
 
   characteristic_ = get_dmc_service()->createCharacteristic(uuid, properties_);
+  uint8_t empty_val[data_size];
+  characteristic_->setValue(empty_val, data_size);
   characteristic_->addDescriptor(new BLE2902());
 }
 
 void DMCCharacteristic::write(uint8_t *data, size_t length) {
-  if (clientConnected) {
-    ESP_LOGD(TAG, "Writing %i bytes to characteristic \"%s\"", length, name_);
-    characteristic_->setValue(data, length);
-    if (properties_ & BLECharacteristic::PROPERTY_NOTIFY) {
-      characteristic_->notify();
-    }
+  ESP_LOGD(TAG, "Writing %i bytes to characteristic \"%s\"", length, name_);
+  characteristic_->setValue(data, length);
+  if (clientConnected && properties_ & BLECharacteristic::PROPERTY_NOTIFY) {
+    characteristic_->notify();
   }
 }
 

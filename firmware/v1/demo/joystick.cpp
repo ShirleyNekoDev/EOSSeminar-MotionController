@@ -1,9 +1,10 @@
 #include <Arduino.h>
 
+#include "board_definitions.h"
 #include "services/joystick_service.h"
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(BOARD_BAUDRATE);
   dmc::joystick::start();
 }
 

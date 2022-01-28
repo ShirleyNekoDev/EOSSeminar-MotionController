@@ -15,7 +15,7 @@ namespace ble {
 class DMCCharacteristic {
 protected:
   explicit DMCCharacteristic(const char *name, const char *uuid, bool read,
-                             bool write, bool notify);
+                             bool write, bool notify, size_t data_size);
 
   void write(uint8_t *data, size_t length);
   // TODO add some kind of read wrapper

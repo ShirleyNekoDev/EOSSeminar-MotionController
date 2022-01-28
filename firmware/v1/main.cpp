@@ -1,5 +1,5 @@
 #define BLE_ENABLED
-#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "esp_log.h"
 
 #include "ble/classic_characteristic.h"
@@ -69,22 +69,26 @@ void setup() {
 
 void loop() {
   { // Classic controls
+    ESP_LOGV(TAG, "Refreshing classic controls...");
     button::refresh();
     joystick::refresh();
     bool update_required = false;
     if (button::read_status(button_status)) {
       update_required = true;
+      ESP_LOGD(TAG, "Button status was updated");
     }
     if (joystick::read_status(joystick_status)) {
       update_required = true;
+      ESP_LOGD(TAG, "Joystick status was updated");
     }
 
     if (update_required) {
+      ESP_LOGD(TAG, "Issuing an update to the CC Characteristic.");
       cc_ch->update(button_status, joystick_status);
     }
   }
 
-  delay(5);
+  delay(100);
 
   // TODO build an abstraction for state management
   // TODO switch between device states CONNECTED and PAIRING in reaction to

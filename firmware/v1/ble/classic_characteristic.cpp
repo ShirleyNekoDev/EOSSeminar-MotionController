@@ -6,6 +6,7 @@
 #include "services/joystick_service.h"
 #include <assert.h>
 
+#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 static const char *TAG = "CLASSIC_CH";
 #include "esp_log.h"
 
@@ -15,9 +16,10 @@ namespace ble {
 
 ClassicControlsCharacteristic::ClassicControlsCharacteristic()
     : dmc::ble::DMCCharacteristic("ClassicControls", CLASSIC_CH_UUID, true,
-                                  false, true) {
+                                  false, true, sizeof(buffer_)) {
   static_assert(sizeof(buffer_) < 20,
                 "Bluetooth notifications cannot exceed 20 bytes");
+  write(reinterpret_cast<uint8_t *>(&buffer_), sizeof(buffer_));
 }
 void ClassicControlsCharacteristic::update(button::Status &button_status,
                                            joystick::Status &joystick_status) {

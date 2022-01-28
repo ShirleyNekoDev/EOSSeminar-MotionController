@@ -7,8 +7,6 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 
-#include "esp_log.h"
-
 namespace dmc {
 
 namespace ble {
