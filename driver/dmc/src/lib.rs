@@ -16,6 +16,8 @@ pub enum ClientUpdate {
     ButtonAUp,
     ButtonBDown,
     ButtonBUp,
+    ButtonMenuDown,
+    ButtonMenuUp,
     JoystickMoved { x: f32, y: f32 }
 }
 
