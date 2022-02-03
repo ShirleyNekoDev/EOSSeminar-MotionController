@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 dmc = { path = "../dmc" }
 bincode = "^1.3.3"
+serde = { version = "~1.0.133"}

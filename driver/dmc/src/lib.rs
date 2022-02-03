@@ -12,7 +12,11 @@ pub enum ClientCommand {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClientUpdate {
-
+    ButtonADown,
+    ButtonAUp,
+    ButtonBDown,
+    ButtonBUp,
+    JoystickMoved { x: f32, y: f32 }
 }
 
 
