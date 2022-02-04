@@ -14,7 +14,6 @@ use tokio_tungstenite::{accept_async, tungstenite::Error as TError, WebSocketStr
 use tungstenite::Message;
 use uuid::Uuid;
 
-use dmc::ClientCommand;
 use dmc_daemon::state::ControllerState;
 use dmc_daemon::event_handling::*;
 use dmc_daemon::ble_spec::*;
@@ -55,7 +54,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .as_millis();
         ValueNotification {
             value: ts.to_ne_bytes()[0..5].to_vec(),
-            uuid: Uuid::parse_str(CLASSIC_CONTROL_CHARACTERISTIC_UUID).unwrap(),
+            uuid: CLASSIC_CONTROL_CHARACTERISTIC_UUID,
         }
     });
 
@@ -137,7 +136,7 @@ async fn listen_for_updates(
 async fn wait_for_motion_controller(central: &Adapter) -> Peripheral {
     // start scanning for devices
     let scan_filter = ScanFilter {
-        services: vec![Uuid::parse_str(DIYMOTIONCONTROLLER_SERVICE_UUID).unwrap()],
+        services: vec![DIYMOTIONCONTROLLER_SERVICE_UUID],
     };
     central.start_scan(scan_filter).await.unwrap();
     loop {
