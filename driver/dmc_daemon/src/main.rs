@@ -1,39 +1,59 @@
-use btleplug::api::{Central, Manager as _, Peripheral as _, Characteristic, ScanFilter, ValueNotification};
+use btleplug::api::{
+    Central, Characteristic, Manager as _, Peripheral as _, ScanFilter, ValueNotification,
+};
 use btleplug::platform::{Adapter, Manager, Peripheral};
-use tokio_stream::wrappers::IntervalStream;
-use std::error::Error;
-use std::option::Option;
-use std::time::{SystemTime, Duration, UNIX_EPOCH};
-use tokio::time;
-use std::marker::Copy;
-use uuid::Uuid;
-use futures::stream::StreamExt;
 use futures::sink::SinkExt;
+use futures::stream::StreamExt;
+use futures::{Sink, Stream};
+use std::error::Error;
+use std::marker::Copy;
+use std::option::Option;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::net::{TcpListener, TcpStream};
-use tokio_tungstenite::{accept_async, WebSocketStream, tungstenite::Error as TError};
+use tokio::time;
+use tokio_stream::wrappers::IntervalStream;
+use tokio_tungstenite::{accept_async, tungstenite::Error as TError, WebSocketStream};
 use tungstenite::Message;
+use uuid::Uuid;
 
-use dmc_daemon::state::ControllerState;
 use dmc::ClientCommand;
+use dmc_daemon::state::ControllerState;
 
 const DIYMOTIONCONTROLLER_SERVICE_UUID: &str = "328c9225-877f-4189-89a8-b50bb21b02ae";
 const CLASSIC_CONTROL_CHARACTERISTIC_UUID: &str = "0385fe9d-56a6-40a4-b055-9b610cfcfe0c";
 
-fn on_ws_message(msg: Message, _controller_write_method: fn(Uuid, Vec<u8>)) {
+async fn on_ble_notification<S: Sink<Message> + Unpin>(
+    controller_state: &mut ControllerState,
+    ws_sender: &mut S,
+    uuid: Uuid,
+    value: Vec<u8>,
+) -> Result<(), S::Error> {
+    if uuid == Uuid::parse_str(CLASSIC_CONTROL_CHARACTERISTIC_UUID).unwrap() {
+        if let Some(chain) =
+            dmc_daemon::state::build_classic_control_updates(controller_state, &value)
+        {
+            ws_sender.send(Message::binary(chain)).await?;
+        }
+        println!("new controller state: {:?}", controller_state);
+    }
+    println!(
+        "From characteristic {} received value {:02X?}.",
+        uuid, value
+    );
+    Ok(())
+}
+
+fn on_ws_message(
+    controller_state: &mut ControllerState,
+    msg: Message,
+    _controller_write_method: fn(Uuid, Vec<u8>),
+) {
     if let Message::Binary(data) = msg {
         match bincode::deserialize::<ClientCommand>(&data).unwrap() {
-            ClientCommand::LedSet { r: _, g: _, b: _ } => {
-
-            },
-            ClientCommand::RumbleStop => {
-
-            },
-            ClientCommand::RumbleStart => {
-
-            },
-            ClientCommand::RumbleBurst { length: _ } => {
-
-            },
+            ClientCommand::LedSet { r: _, g: _, b: _ } => {}
+            ClientCommand::RumbleStop => {}
+            ClientCommand::RumbleStart => {}
+            ClientCommand::RumbleBurst { length: _ } => {}
         }
     }
 }
@@ -68,57 +88,86 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let interval = tokio::time::interval(Duration::from_secs(1));
     let interval_stream = IntervalStream::new(interval);
     let mut notification_stream = interval_stream.map(move |_| {
-        let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-        ValueNotification { value: ts.to_ne_bytes()[0..5].to_vec(), uuid: Uuid::parse_str(CLASSIC_CONTROL_CHARACTERISTIC_UUID).unwrap() }
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        ValueNotification {
+            value: ts.to_ne_bytes()[0..5].to_vec(),
+            uuid: Uuid::parse_str(CLASSIC_CONTROL_CHARACTERISTIC_UUID).unwrap(),
+        }
     });
 
     let mut controller_state = ControllerState::new();
+    work_loop(
+        &mut controller_state,
+        &mut notification_stream,
+        &mut ws_receiver,
+        &mut ws_sender,
+    )
+    .await?;
+    Ok(())
+}
 
+async fn work_loop<
+    N: StreamExt<Item = ValueNotification> + Unpin,
+    R: StreamExt<Item = Result<Message, tungstenite::Error>> + Unpin,
+    S: Sink<Message> + Unpin,
+>(
+    controller_state: &mut ControllerState,
+    notification_stream: &mut N,
+    ws_receiver: &mut R,
+    ws_sender: &mut S,
+) -> Result<(), S::Error> {
     loop {
         tokio::select! {
             Some(data) = notification_stream.next() => {
-                let characteristic_uuid = data.uuid;
-                let characteristic_value = data.value;
-                if characteristic_uuid == Uuid::parse_str(CLASSIC_CONTROL_CHARACTERISTIC_UUID).unwrap() {
-                    if let Some(chain) = dmc_daemon::state::build_classic_control_updates(&mut controller_state, &characteristic_value) {
-                        ws_sender.send(Message::binary(chain)).await?;
-                    }
-                    println!("new controller state: {:?}", controller_state);
-                }
-                println!("From characteristic {} received value {:02X?}.", characteristic_uuid, characteristic_value);
+                on_ble_notification(controller_state, ws_sender, data.uuid, data.value).await?;
             },
-            Some(msg) = ws_receiver.next() => {
-                on_ws_message(msg?, |characteristic_uuid, characteristic_value| {
-                    println!("To characteristic {} sent value {:02X?}.", characteristic_uuid, characteristic_value);
-                });
+            Some(result) = ws_receiver.next() => {
+                match result {
+                    Ok(msg) =>
+                        on_ws_message(controller_state, msg, |characteristic_uuid, characteristic_value| {
+                            println!("To characteristic {} sent value {:02X?}.", characteristic_uuid, characteristic_value);
+                        }),
+                    Err(TError::ConnectionClosed) => break,
+                    Err(e) => panic!("Failed to receive message from ws: {}", e),
+                }
             },
         }
     }
+    Ok(())
 }
 
 async fn wait_for_client_connection() -> Result<WebSocketStream<TcpStream>, Box<dyn Error>> {
     let addr = "127.0.0.1:9001";
-    let server = TcpListener::bind(&addr).await.expect("Cannot listen on port 9001.");
+    let server = TcpListener::bind(&addr)
+        .await
+        .expect("Cannot listen on port 9001.");
 
     println!("Waiting for connection on addres {}", addr);
     let (stream, _) = server.accept().await?;
-    let peer = stream.peer_addr().expect("connected streams should have a peer address");
+    let peer = stream
+        .peer_addr()
+        .expect("connected streams should have a peer address");
     println!("We are connected to peer with address {}", peer);
-    let ws_stream = accept_async(stream).await.expect("Failed to accept websocket.");
+    let ws_stream = accept_async(stream)
+        .await
+        .expect("Failed to accept websocket.");
     println!("WebSocket connection successful");
     return Ok(ws_stream);
 }
 
-async fn listen_for_updates(controller: &Peripheral, characteristic: &Characteristic) -> Result<(), Box<dyn Error>> {
+async fn listen_for_updates(
+    controller: &Peripheral,
+    characteristic: &Characteristic,
+) -> Result<(), Box<dyn Error>> {
     controller.subscribe(characteristic).await?;
     // let update_stream = controller.notifications().await?;
     let mut notification_stream = controller.notifications().await?.take(16);
     // Process while the BLE connection is not broken or stopped.
     while let Some(data) = notification_stream.next().await {
-        println!(
-            "uuid: {:?}, value:{:?}",
-            data.uuid, data.value
-        );
+        println!("uuid: {:?}, value:{:?}", data.uuid, data.value);
     }
     controller.unsubscribe(characteristic).await?;
     Ok(())
@@ -126,7 +175,9 @@ async fn listen_for_updates(controller: &Peripheral, characteristic: &Characteri
 
 async fn wait_for_motion_controller(central: &Adapter) -> Peripheral {
     // start scanning for devices
-    let scan_filter = ScanFilter { services: vec![Uuid::parse_str(DIYMOTIONCONTROLLER_SERVICE_UUID).unwrap()] };
+    let scan_filter = ScanFilter {
+        services: vec![Uuid::parse_str(DIYMOTIONCONTROLLER_SERVICE_UUID).unwrap()],
+    };
     central.start_scan(scan_filter).await.unwrap();
     loop {
         match find_motion_controller(central).await {
