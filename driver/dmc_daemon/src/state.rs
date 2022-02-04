@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use dmc::ClientUpdate;
 
 #[derive(Clone,Copy,PartialEq,Debug)]
@@ -16,6 +18,15 @@ pub struct ControllerState {
 }
 
 impl ControllerState {
+    pub fn dbg_set_joystick(&mut self, angle: f32, amplitude: f32) -> ClientUpdate {
+        assert!(0.0 <= amplitude && amplitude <= 1.0, "amplitude must be in range 0..1");
+        
+        self.joystick_state.x = angle.cos() * amplitude;
+        self.joystick_state.y = angle.sin() * amplitude;
+        self.joystick_state.into()
+    }
+
+
     // Returns whether or not the state was updated.
     pub fn button_a_state_transition(&mut self, new_value: bool) -> Option<ClientUpdate> {
         if new_value ^ (self.button_a_state == ButtonState::DOWN) {
