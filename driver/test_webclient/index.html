@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Test Webclient</title>
+    <script>
+      var ws;
+      const td = new TextDecoder();
+
+      function byte_length_of_field_type(field_type) {
+        switch (field_type) {
+          case "f32":
+            return 4;
+          case "i32":
+            return 4;
+          case "u32":
+            return 1;
+          case "i8":
+            return 1;
+          case "u8":
+            return 1;
+          case "bool":
+            return 1;
+          default:
+            throw new Error('unknown type "' + type_name + '"');
+        }
+      }
+      function converter_for_field_type(field_type) {
+        switch (field_type) {
+          case "f32":
+            return (data_view, byte_offset) =>
+              data_view.getFloat32(byte_offset, true);
+          case "i32":
+            return (data_view, byte_offset) =>
+              data_view.getInt32(byte_offset, true);
+          case "u32":
+            return (data_view, byte_offset) =>
+              data_view.getUint32(byte_offset, true);
+          case "i8":
+            return (data_view, byte_offset) => data_view.getInt8(byte_offset);
+          case "u8":
+            return (data_view, byte_offset) => data_view.getUint8(byte_offset);
+          case "bool":
+            return (data_view, byte_offset) =>
+              data_view.getInt8(byte_offset) != 0;
+          default:
+            throw new Error('unknown type "' + type_name + '"');
+        }
+      }
+      function resolve_payload_length(payload_definition) {
+        let meta = {
+          fields: {},
+          total_length: 0,
+        };
+        for (field_name in payload_definition) {
+          const field_type = payload_definition[field_name];
+          const field_length = byte_length_of_field_type(field_type);
+          meta.fields[field_name] = {
+            length: field_length,
+            convert: converter_for_field_type(field_type),
+          };
+          meta.total_length += field_length;
+        }
+        payload_definition.meta = meta;
+      }
+
+      const ClientUpdate = {
+        ButtonADown: {},
+        ButtonAUp: {},
+        ButtonBDown: {},
+        ButtonBUp: {},
+        ButtonMenuDown: {},
+        ButtonMenuUp: {},
+        JoystickMoved: {
+          x: "f32",
+          y: "f32",
+        },
+      };
+      Object.keys(ClientUpdate).forEach((payload_type_name) => {
+        resolve_payload_length(ClientUpdate[payload_type_name]);
+      });
+      console.log(ClientUpdate);
+
+      const joystickElements = {};
+      function init() {
+        (joystickElements.sliderX = document.getElementById("joystick-x")),
+          (joystickElements.sliderY = document.getElementById("joystick-y"));
+        joystickElements.visualization = document.getElementById(
+          "joystick-visualization"
+        );
+      }
+
+      async function connect() {
+        console.log("connect");
+        ws = new WebSocket("ws://127.0.0.1:9001");
+        ws.binaryType = "arraybuffer";
+        ws.addEventListener("message", (event) => {
+          if (!(event.data instanceof ArrayBuffer)) {
+            throw "invalid data type";
+          }
+          const view = new DataView(event.data);
+          const u8arr = new Uint8Array(event.data);
+          let position = 0;
+
+          while(position <= u8arr.length - 8){
+            const length = view.getUint32(position, true);
+            position += 8;
+            const type_name = td.decode(
+              u8arr.subarray(position, position + length)
+            );
+            position += length;
+
+            // console.log(type_name);
+            // console.log(
+            //   [...u8arr.subarray(position)]
+            //   .map(byte => byte.toString(16).padStart(2, "0"))
+            // );
+
+            const type = ClientUpdate[type_name];
+            if (!type) {
+              throw new Error('unknown type "' + type_name + '"');
+            }
+            const payload = {};
+            for (field_name in type.meta.fields) {
+              let field_meta = type.meta.fields[field_name];
+              payload[field_name] = field_meta.convert(view, position);
+              position += field_meta.length;
+            }
+            handle_command(type_name, payload);
+          }
+        });
+      }
+
+      function handle_command(command, payload) {
+        console.log(command, payload);
+        switch (command) {
+          case "JoystickMoved":
+            joystickElements.sliderX.value = payload.x;
+            joystickElements.sliderY.value = payload.y;
+            joystickElements.visualization.setAttribute("cx", 32.0 + 16.0 * payload.x);
+            joystickElements.visualization.setAttribute("cy", 32.0 + 16.0 * payload.y);
+            break;
+          default:
+            console.log("unhandled command", command);
+        }
+      }
+
+      async function disconnect() {
+        console.log("dc");
+        ws.close();
+      }
+    </script>
+  </head>
+  <body onload="init()">
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+    <br />
+    <section>
+      Buttons
+    </section>
+    <section>
+      x:
+      <input id="joystick-x" type="range" min="-1.0" max="1.0" step="any" value="0.0" />
+      <br />
+      y:
+      <input id="joystick-y" type="range" min="-1.0" max="1.0" step="any" value="0.0" />
+      <br />
+      <svg width="100" height="100" viewBox="0 0 64 64">
+        <circle cx="32" cy="32" r="32" fill="lightGray" stroke="black" />
+        <circle cx="32" cy="32" r="16" fill="white" stroke="black" />
+        <circle
+          id="joystick-visualization"
+          cx="32"
+          cy="32"
+          r="16"
+          fill="lightGray"
+          stroke="black"
+        />
+      </svg>
+    </section>
+  </body>
+</html>
+
+<!--
+0600 0000 0000 0000 4c65 6453 6574 2010  ........LedSet .
+080b 0000 0000 0000 0052 756d 626c 6553  .........RumbleS
+7461 7274 0a00 0000 0000 0000 5275 6d62  tart........Rumb
+6c65 5374 6f70 0b00 0000 0000 0000 5275  leStop........Ru
+6d62 6c65 4275 7273 7400 100b 0000 0000  mbleBurst.......
+0000 0042 7574 746f 6e41 446f 776e 0d00  ...ButtonADown..
+0000 0000 0000 4a6f 7973 7469 636b 4d6f  ......JoystickMo
+7665 6400 0000 0000 0080 3f              ved.......?
+-->
