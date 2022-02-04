@@ -2,11 +2,9 @@ use btleplug::api::{
     Central, Characteristic, Manager as _, Peripheral as _, ScanFilter, ValueNotification,
 };
 use btleplug::platform::{Adapter, Manager, Peripheral};
-use futures::sink::SinkExt;
 use futures::stream::StreamExt;
-use futures::{Sink, Stream};
+use futures::Sink;
 use std::error::Error;
-use std::marker::Copy;
 use std::option::Option;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::net::{TcpListener, TcpStream};
@@ -18,45 +16,8 @@ use uuid::Uuid;
 
 use dmc::ClientCommand;
 use dmc_daemon::state::ControllerState;
-
-const DIYMOTIONCONTROLLER_SERVICE_UUID: &str = "328c9225-877f-4189-89a8-b50bb21b02ae";
-const CLASSIC_CONTROL_CHARACTERISTIC_UUID: &str = "0385fe9d-56a6-40a4-b055-9b610cfcfe0c";
-
-async fn on_ble_notification<S: Sink<Message> + Unpin>(
-    controller_state: &mut ControllerState,
-    ws_sender: &mut S,
-    uuid: Uuid,
-    value: Vec<u8>,
-) -> Result<(), S::Error> {
-    if uuid == Uuid::parse_str(CLASSIC_CONTROL_CHARACTERISTIC_UUID).unwrap() {
-        if let Some(chain) =
-            dmc_daemon::state::build_classic_control_updates(controller_state, &value)
-        {
-            ws_sender.send(Message::binary(chain)).await?;
-        }
-        println!("new controller state: {:?}", controller_state);
-    }
-    println!(
-        "From characteristic {} received value {:02X?}.",
-        uuid, value
-    );
-    Ok(())
-}
-
-fn on_ws_message(
-    controller_state: &mut ControllerState,
-    msg: Message,
-    _controller_write_method: fn(Uuid, Vec<u8>),
-) {
-    if let Message::Binary(data) = msg {
-        match bincode::deserialize::<ClientCommand>(&data).unwrap() {
-            ClientCommand::LedSet { r: _, g: _, b: _ } => {}
-            ClientCommand::RumbleStop => {}
-            ClientCommand::RumbleStart => {}
-            ClientCommand::RumbleBurst { length: _ } => {}
-        }
-    }
-}
+use dmc_daemon::event_handling::*;
+use dmc_daemon::ble_spec::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
