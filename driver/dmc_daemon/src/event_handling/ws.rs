@@ -1,12 +1,11 @@
-use tungstenite::Message;
-use uuid::Uuid;
+use crate::{ble_connection::Controller, state::ControllerState};
 use dmc::ClientCommand;
-use crate::state::ControllerState;
+use tungstenite::Message;
 
-pub fn on_ws_message(
+pub fn on_ws_message<C: Controller>(
     controller_state: &mut ControllerState,
+    controller_handle: &mut C,
     msg: Message,
-    _controller_write_method: fn(Uuid, Vec<u8>),
 ) {
     if let Message::Binary(data) = msg {
         match bincode::deserialize::<ClientCommand>(&data).unwrap() {
@@ -17,4 +16,3 @@ pub fn on_ws_message(
         }
     }
 }
-

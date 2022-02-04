@@ -1,16 +1,19 @@
 use btleplug::api::ValueNotification;
-use futures::stream::StreamExt;
-use futures::Sink;
+use futures::stream::{SplitSink, SplitStream, StreamExt};
 use std::error::Error;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::time::sleep;
 use tokio_stream::wrappers::IntervalStream;
 use tokio_tungstenite::{accept_async, tungstenite::Error as TError, WebSocketStream};
 use tungstenite::Message;
 
-use dmc_daemon::ble_spec::*;
-use dmc_daemon::event_handling::*;
-use dmc_daemon::state::ControllerState;
+use dmc_daemon::{
+    ble_connection::{Controller, FakeController},
+    ble_spec::*,
+    event_handling::*,
+    state::ControllerState,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -53,41 +56,49 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     let mut controller_state = ControllerState::new();
-    work_loop(
+
+    let mut controller_handle = FakeController;
+
+    match work_loop(
         &mut controller_state,
+        &mut controller_handle,
         &mut notification_stream,
         &mut ws_receiver,
         &mut ws_sender,
     )
-    .await?;
+    .await
+    {
+        Ok(()) => {}
+        Err(_) => {
+            // TODO handle errors (ble disconnect, ws disconnect)
+        }
+    }
+
     Ok(())
 }
 
-async fn work_loop<
-    N: StreamExt<Item = ValueNotification> + Unpin,
-    R: StreamExt<Item = Result<Message, tungstenite::Error>> + Unpin,
-    S: Sink<Message> + Unpin,
->(
+async fn work_loop<N: StreamExt<Item = ValueNotification> + Unpin, C: Controller>(
     controller_state: &mut ControllerState,
+    controller_handle: &mut C,
     notification_stream: &mut N,
-    ws_receiver: &mut R,
-    ws_sender: &mut S,
-) -> Result<(), S::Error> {
+    ws_receiver: &mut SplitStream<WebSocketStream<TcpStream>>,
+    ws_sender: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
+) -> Result<(), Box<dyn Error>> {
     loop {
         tokio::select! {
-            Some(data) = notification_stream.next() => {
-                on_ble_notification(controller_state, ws_sender, data.uuid, data.value).await?;
-            },
+            Some(data) = notification_stream.next() =>
+                on_ble_notification(controller_state, ws_sender, data.uuid, data.value).await?,
             Some(result) = ws_receiver.next() => {
                 match result {
                     Ok(msg) =>
-                        on_ws_message(controller_state, msg, |characteristic_uuid, characteristic_value| {
-                            println!("To characteristic {} sent value {:02X?}.", characteristic_uuid, characteristic_value);
-                        }),
+                        on_ws_message(controller_state, controller_handle, msg),
                     Err(TError::ConnectionClosed) => break,
                     Err(e) => panic!("Failed to receive message from ws: {}", e),
                 }
             },
+            _ = sleep(Duration::from_secs(10)) => {
+                // TODO check whether BLE connection is still up
+            }
         }
     }
     Ok(())

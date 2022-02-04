@@ -1,9 +1,31 @@
 use crate::ble_spec::DIYMOTIONCONTROLLER_SERVICE_UUID;
+use async_trait::async_trait;
 use btleplug::api::{Central, Characteristic, Peripheral as _, ScanFilter};
 use btleplug::platform::{Adapter, Peripheral};
 use futures::stream::StreamExt;
 use std::error::Error;
 use tokio::time::{self, Duration};
+
+#[async_trait]
+pub trait Controller {
+    async fn write(characteristic: uuid::Uuid, value: Vec<u8>);
+    async fn is_connected() -> bool;
+}
+
+pub struct FakeController;
+
+#[async_trait]
+impl Controller for FakeController {
+    async fn write(characteristic: uuid::Uuid, value: Vec<u8>) {
+        println!(
+            "To characteristic {} sent value {:02X?}.",
+            characteristic, value
+        );
+    }
+    async fn is_connected() -> bool {
+        true
+    }
+}
 
 async fn listen_for_updates(
     controller: &Peripheral,
