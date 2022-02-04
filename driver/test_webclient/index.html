@@ -56,6 +56,7 @@
     <script>
       var ws;
       const td = new TextDecoder();
+      const te = new TextEncoder();
 
       function byte_length_of_field_type(field_type) {
         switch (field_type) {
@@ -69,10 +70,8 @@
             return 1;
           case "u8":
             return 1;
-          case "bool":
-            return 1;
           default:
-            throw new Error('unknown type "' + type_name + '"');
+            throw new Error(`unknown type "${type_name}'"`);
         }
       }
       function reader_for_field_type(field_type) {
@@ -90,14 +89,32 @@
             return (data_view, byte_offset) => data_view.getInt8(byte_offset);
           case "u8":
             return (data_view, byte_offset) => data_view.getUint8(byte_offset);
-          case "bool":
-            return (data_view, byte_offset) =>
-              data_view.getInt8(byte_offset) != 0;
           default:
-            throw new Error('unknown type "' + type_name + '"');
+            throw new Error(`unknown type "${type_name}"`);
         }
       }
-      function resolve_payload_length(payload_definition) {
+      function writer_for_field_type(field_type) {
+        switch (field_type) {
+          case "f32":
+            return (data_view, value, byte_offset) =>
+              data_view.setFloat32(byte_offset, value, true);
+          case "i32":
+            return (data_view, value, byte_offset) =>
+              data_view.setInt32(byte_offset, value, true);
+          case "u32":
+            return (data_view, value, byte_offset) =>
+              data_view.setUint32(byte_offset, value, true);
+          case "i8":
+            return (data_view, value, byte_offset) =>
+            data_view.setInt8(byte_offset, value);
+          case "u8":
+            return (data_view, value, byte_offset) =>
+            data_view.setUint8(byte_offset, value);
+          default:
+            throw new Error(`unknown type "${type_name}"`);
+        }
+      }
+      function resolve_payload_metadata(payload_definition) {
         let meta = {
           fields: {},
           total_length: 0,
@@ -108,6 +125,7 @@
           meta.fields[field_name] = {
             length: field_length,
             read: reader_for_field_type(field_type),
+            write: writer_for_field_type(field_type),
           };
           meta.total_length += field_length;
         }
@@ -130,13 +148,30 @@
         },
       };
       Object.keys(ClientUpdate).forEach((payload_type_name) => {
-        resolve_payload_length(ClientUpdate[payload_type_name]);
+        resolve_payload_metadata(ClientUpdate[payload_type_name]);
+      });
+
+      const ClientCommand = {
+        LedSet: {
+          r: "u8",
+          g: "u8",
+          b: "u8"
+        },
+        RumbleStart: {},
+        RumbleStop: {},
+        RumbleBurst: {
+          length: "u8"
+        },
+      };
+      Object.keys(ClientCommand).forEach((payload_type_name) => {
+        resolve_payload_metadata(ClientCommand[payload_type_name]);
       });
 
       let wsOutput;
       const joystickElements = {};
       const buttonElements = {};
       let batteryElement;
+      const ledElements = {};
       function init() {
         wsOutput = document.getElementById("ws-output");
 
@@ -155,6 +190,19 @@
         );
 
         batteryElement = document.getElementById("battery-status");
+
+        ledElements.r = document.getElementById("led-r");
+        ledElements.rValue = document.getElementById("led-r-value");
+        ledElements.r.addEventListener("change", () => ledElements.rValue.value = ledElements.r.value);
+        ledElements.rValue.addEventListener("change", () => ledElements.r.value = ledElements.rValue.value);
+        ledElements.g = document.getElementById("led-g");
+        ledElements.gValue = document.getElementById("led-g-value");
+        ledElements.g.addEventListener("change", () => ledElements.gValue.value = ledElements.g.value);
+        ledElements.gValue.addEventListener("change", () => ledElements.g.value = ledElements.gValue.value);
+        ledElements.b = document.getElementById("led-b");
+        ledElements.bValue = document.getElementById("led-b-value");
+        ledElements.b.addEventListener("change", () => ledElements.bValue.value = ledElements.b.value);
+        ledElements.bValue.addEventListener("change", () => ledElements.b.value = ledElements.bValue.value);
       }
 
       async function connect() {
@@ -177,19 +225,14 @@
             );
             position += length;
 
-            // console.log(type_name);
-            // console.log(
-            //   [...u8arr.subarray(position)]
-            //   .map(byte => byte.toString(16).padStart(2, "0"))
-            // );
-
             const type = ClientUpdate[type_name];
             if (!type) {
-              throw new Error('unknown type "' + type_name + '"');
+              throw new Error(`unknown type "${type_name}"`);
             }
+
             const payload = {};
             for (field_name in type.meta.fields) {
-              let field_meta = type.meta.fields[field_name];
+              const field_meta = type.meta.fields[field_name];
               payload[field_name] = field_meta.read(view, position);
               position += field_meta.length;
             }
@@ -256,9 +299,64 @@
         }
       }
 
+      function sendCommand(command, payload_params) {
+        if(!ws || ws.readyState !== 1) {
+          throw new Error("not connected");
+        }
+
+        const type = ClientCommand[command];
+        if (!type) {
+          throw new Error(`unknown type "${type_name}"`);
+        }
+
+        const length = command.length;
+        const payload_length = type.meta.total_length;
+
+        const buffer = new ArrayBuffer(8 + length + payload_length);
+        const view = new DataView(buffer);
+        const u8arr = new Uint8Array(buffer);
+
+        let position = 0;
+        view.setUint32(position, length, true);
+        position += 8;
+
+        te.encodeInto(
+          command,
+          u8arr.subarray(position, position + length)
+        );
+        position += length;
+
+        for (field_name in type.meta.fields) {
+          const field_meta = type.meta.fields[field_name];
+          const field_data = payload_params[field_name];
+          if(field_data === undefined) {
+            throw new Error(`missing required argument "${field_name}"`);
+          }
+          field_meta.write(view, field_data, position);
+          position += field_meta.length;
+        }
+
+        console.log(command);
+        console.log(
+          [...u8arr]
+          .map(byte => byte.toString(16).padStart(2, "0"))
+        );
+        
+        ws.send(buffer);
+      }
+
+      function setLed() {
+        sendCommand("LedSet", {
+          r: ledElements.r.valueAsNumber,
+          g: ledElements.g.valueAsNumber,
+          b: ledElements.b.valueAsNumber,
+        });
+      }
+
       async function disconnect() {
         console.log("dc");
         ws.close();
+        ws = null;
       }
     </script>
   </head>
@@ -271,13 +369,19 @@
       <ul id="ws-output"></ul>
     </section>
     <section>
-      <h2>Buttons:</h2>
-      <button id="button-a" class="displayBtn" disabled>A</button>
-      <button id="button-b" class="displayBtn" disabled>B</button>
-      <button id="button-menu" class="displayBtn" disabled>☰</button>
+      <h2>Buttons</h2>
+      <section>
+        <button id="button-a" class="displayBtn" disabled>A</button>
+      </section>
+      <section>
+        <button id="button-b" class="displayBtn" disabled>B</button>
+      </section>
+      <section>
+        <button id="button-menu" class="displayBtn" disabled>☰</button>
+      </section>
     </section>
     <section>
-      <h2>Joystick:</h2>
+      <h2>Joystick</h2>
       <section>
         x:
         <input
@@ -342,6 +446,27 @@
         value="255">
         100%
       </meter>
+    </section>
+    <section>
+      <h2>LED</h2>
+      <section>
+        <label for="led-r">R
+          <input id="led-r" type="range" min="0" max="255" step="1" value="0" />
+          <input id="led-r-value" type="number" min="0" max="255" step="1" value="0" />
+        </label>
+      </section>
+      <section>
+        <label for="led-g">G
+          <input id="led-g" type="range" min="0" max="255" step="1" value="0" />
+          <input id="led-g-value" type="number" min="0" max="255" step="1" value="0" />
+        </label>
+      <section>
+        <label for="led-b">B
+          <input id="led-b" type="range" min="0" max="255" step="1" value="0" />
+          <input id="led-b-value" type="number" min="0" max="255" step="1" value="0" />
+        </label>
+      </section>
+      <button onclick="setLed()">Apply</button>
     </section>
   </body>
 </html>
