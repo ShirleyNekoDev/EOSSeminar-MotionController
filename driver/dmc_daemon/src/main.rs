@@ -1,22 +1,16 @@
-use btleplug::api::{
-    Central, Characteristic, Manager as _, Peripheral as _, ScanFilter, ValueNotification,
-};
-use btleplug::platform::{Adapter, Manager, Peripheral};
+use btleplug::api::ValueNotification;
 use futures::stream::StreamExt;
 use futures::Sink;
 use std::error::Error;
-use std::option::Option;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::time;
 use tokio_stream::wrappers::IntervalStream;
 use tokio_tungstenite::{accept_async, tungstenite::Error as TError, WebSocketStream};
 use tungstenite::Message;
-use uuid::Uuid;
 
-use dmc_daemon::state::ControllerState;
-use dmc_daemon::event_handling::*;
 use dmc_daemon::ble_spec::*;
+use dmc_daemon::event_handling::*;
+use dmc_daemon::state::ControllerState;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -116,49 +110,4 @@ async fn wait_for_client_connection() -> Result<WebSocketStream<TcpStream>, Box<
         .expect("Failed to accept websocket.");
     println!("WebSocket connection successful");
     return Ok(ws_stream);
-}
-
-async fn listen_for_updates(
-    controller: &Peripheral,
-    characteristic: &Characteristic,
-) -> Result<(), Box<dyn Error>> {
-    controller.subscribe(characteristic).await?;
-    // let update_stream = controller.notifications().await?;
-    let mut notification_stream = controller.notifications().await?.take(16);
-    // Process while the BLE connection is not broken or stopped.
-    while let Some(data) = notification_stream.next().await {
-        println!("uuid: {:?}, value:{:?}", data.uuid, data.value);
-    }
-    controller.unsubscribe(characteristic).await?;
-    Ok(())
-}
-
-async fn wait_for_motion_controller(central: &Adapter) -> Peripheral {
-    // start scanning for devices
-    let scan_filter = ScanFilter {
-        services: vec![DIYMOTIONCONTROLLER_SERVICE_UUID],
-    };
-    central.start_scan(scan_filter).await.unwrap();
-    loop {
-        match find_motion_controller(central).await {
-            Some(peripheral) => {
-                return peripheral;
-            }
-            None => {
-                time::sleep(Duration::from_secs(5)).await;
-            }
-        }
-    }
-}
-
-async fn find_motion_controller(central: &Adapter) -> Option<Peripheral> {
-    for peripheral in central.peripherals().await.unwrap() {
-        let properties = peripheral.properties().await.unwrap().unwrap();
-        let maybe_name = properties.local_name;
-        if maybe_name == Some(String::from("DIYMotionController")) {
-            println!("Found device at {:?}", properties.address);
-            return Some(peripheral);
-        }
-    }
-    return None;
 }
