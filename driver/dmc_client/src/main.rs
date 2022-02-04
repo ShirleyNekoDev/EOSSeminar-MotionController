@@ -13,7 +13,7 @@ fn main() {
     write_to_stdout(&ClientCommand::LedSet { r: 32, g: 16, b: 8 });
     write_to_stdout(&ClientCommand::RumbleStart);
     write_to_stdout(&ClientCommand::RumbleStop);
-    write_to_stdout(&ClientCommand::RumbleBurst { length: 4096 });
+    write_to_stdout(&ClientCommand::RumbleBurst { length: 50 });
     write_to_stdout(&ClientUpdate::ButtonADown);
     write_to_stdout(&ClientUpdate::JoystickMoved { x: 0.0, y: 1.0 });
 }

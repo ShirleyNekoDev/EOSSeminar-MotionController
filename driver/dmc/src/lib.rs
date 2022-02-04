@@ -6,7 +6,9 @@ pub enum ClientCommand {
     LedSet { r: u8, g: u8, b: u8 },
     RumbleStart,
     RumbleStop,
-    RumbleBurst { length: i16 },
+    RumbleBurst {
+        length: u8 // * 10ms (therefore 1 => 10ms, 255 => 2550ms)
+    },
 }
 
 #[derive(Serialize, Deserialize)]
