@@ -91,7 +91,7 @@ async fn work_loop<N: StreamExt<Item = ValueNotification> + Unpin, C: Controller
             Some(result) = ws_receiver.next() => {
                 match result {
                     Ok(msg) =>
-                        on_ws_message(controller_state, controller_handle, msg),
+                        on_ws_message(controller_state, controller_handle, msg).await?,
                     Err(TError::ConnectionClosed) => break,
                     Err(e) => panic!("Failed to receive message from ws: {}", e),
                 }

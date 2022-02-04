@@ -8,21 +8,22 @@ use tokio::time::{self, Duration};
 
 #[async_trait]
 pub trait Controller {
-    async fn write(characteristic: uuid::Uuid, value: Vec<u8>);
-    async fn is_connected() -> bool;
+    async fn write(&mut self, characteristic: uuid::Uuid, value: Vec<u8>);
+    async fn is_connected(&mut self) -> bool;
 }
 
 pub struct FakeController;
+pub struct BluetoothConnectedController {}
 
 #[async_trait]
 impl Controller for FakeController {
-    async fn write(characteristic: uuid::Uuid, value: Vec<u8>) {
+    async fn write(&mut self, characteristic: uuid::Uuid, value: Vec<u8>) {
         println!(
             "To characteristic {} sent value {:02X?}.",
             characteristic, value
         );
     }
-    async fn is_connected() -> bool {
+    async fn is_connected(&mut self) -> bool {
         true
     }
 }
