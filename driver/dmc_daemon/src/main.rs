@@ -17,6 +17,12 @@ use dmc_daemon::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let addr = "127.0.0.1:9001";
+    let server = TcpListener::bind(&addr)
+        .await
+        .expect("Cannot listen on port 9001.");
+    println!("WebSocket server ready on ws://{}", addr);
+
     // let manager = Manager::new().await.unwrap();
 
     // // get the first bluetooth adapter
@@ -29,52 +35,52 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // println!("We are connected :party:");
     // println!("found characteristics:");
 
-    let ws_stream = wait_for_client_connection().await?;
-    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+    loop {
+        let ws_stream = wait_for_client_connection(&server).await?;
+        let (mut ws_sender, mut ws_receiver) = ws_stream.split();
 
-    // for characteristic in controller_peripheral.characteristics().iter() {
-    //     controller_peripheral.subscribe(characteristic).await?;
-    // }
+        // for characteristic in controller_peripheral.characteristics().iter() {
+        //     controller_peripheral.subscribe(characteristic).await?;
+        // }
 
-    // for characteristic in controller_peripheral.characteristics().iter() {
-    //     controller_peripheral.unsubscribe(characteristic).await?;
-    // }
+        // for characteristic in controller_peripheral.characteristics().iter() {
+        //     controller_peripheral.unsubscribe(characteristic).await?;
+        // }
 
-    // let mut notification_stream = controller_peripheral.notifications().await?;
+        // let mut notification_stream = controller_peripheral.notifications().await?;
 
-    let interval = tokio::time::interval(Duration::from_secs(1));
-    let interval_stream = IntervalStream::new(interval);
-    let mut notification_stream = interval_stream.map(move |_| {
-        let ts = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        ValueNotification {
-            value: ts.to_ne_bytes()[0..5].to_vec(),
-            uuid: CLASSIC_CONTROL_CHARACTERISTIC_UUID,
-        }
-    });
+        let interval = tokio::time::interval(Duration::from_secs(1));
+        let interval_stream = IntervalStream::new(interval);
+        let mut notification_stream = interval_stream.map(move |_| {
+            let ts = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis();
+            ValueNotification {
+                value: ts.to_ne_bytes()[0..5].to_vec(),
+                uuid: CLASSIC_CONTROL_CHARACTERISTIC_UUID,
+            }
+        });
 
-    let mut controller_state = ControllerState::new();
+        let mut controller_state = ControllerState::new();
 
-    let mut controller_handle = FakeController;
+        let mut controller_handle = FakeController;
 
-    match work_loop(
-        &mut controller_state,
-        &mut controller_handle,
-        &mut notification_stream,
-        &mut ws_receiver,
-        &mut ws_sender,
-    )
-    .await
-    {
-        Ok(()) => {}
-        Err(_) => {
-            // TODO handle errors (ble disconnect, ws disconnect)
+        match work_loop(
+            &mut controller_state,
+            &mut controller_handle,
+            &mut notification_stream,
+            &mut ws_receiver,
+            &mut ws_sender,
+        )
+        .await
+        {
+            Ok(()) => {}
+            Err(_) => {
+                // TODO handle errors (ble disconnect, ws disconnect)
+            }
         }
     }
-
-    Ok(())
 }
 
 async fn work_loop<N: StreamExt<Item = ValueNotification> + Unpin, C: Controller>(
@@ -104,18 +110,13 @@ async fn work_loop<N: StreamExt<Item = ValueNotification> + Unpin, C: Controller
     Ok(())
 }
 
-async fn wait_for_client_connection() -> Result<WebSocketStream<TcpStream>, Box<dyn Error>> {
-    let addr = "127.0.0.1:9001";
-    let server = TcpListener::bind(&addr)
-        .await
-        .expect("Cannot listen on port 9001.");
-
-    println!("Waiting for connection on addres {}", addr);
+async fn wait_for_client_connection(server: &TcpListener) -> Result<WebSocketStream<TcpStream>, Box<dyn Error>> {
+    println!("Waiting for connection...");
     let (stream, _) = server.accept().await?;
     let peer = stream
         .peer_addr()
         .expect("connected streams should have a peer address");
-    println!("We are connected to peer with address {}", peer);
+    println!("We are connected to a new peer with address {}", peer);
     let ws_stream = accept_async(stream)
         .await
         .expect("Failed to accept websocket.");
