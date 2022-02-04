@@ -1,6 +1,6 @@
 use crate::ble_spec::DIYMOTIONCONTROLLER_SERVICE_UUID;
 use async_trait::async_trait;
-use btleplug::api::{Central, Characteristic, Peripheral as _, ScanFilter};
+use btleplug::api::{Central, Characteristic, Peripheral as _, ScanFilter, WriteType};
 use btleplug::platform::{Adapter, Peripheral};
 use futures::stream::StreamExt;
 use std::error::Error;
@@ -8,20 +8,34 @@ use tokio::time::{self, Duration};
 
 #[async_trait]
 pub trait Controller {
-    async fn write(&mut self, characteristic: uuid::Uuid, value: Vec<u8>);
+    async fn write(&mut self, characteristic: &Characteristic, value: Vec<u8>);
     async fn is_connected(&mut self) -> bool;
 }
 
 pub struct FakeController;
-pub struct BluetoothConnectedController {}
 
 #[async_trait]
 impl Controller for FakeController {
-    async fn write(&mut self, characteristic: uuid::Uuid, value: Vec<u8>) {
+    async fn write(&mut self, characteristic: &Characteristic, value: Vec<u8>) {
         println!(
             "To characteristic {} sent value {:02X?}.",
-            characteristic, value
+            characteristic.uuid, value
         );
+    }
+    async fn is_connected(&mut self) -> bool {
+        true
+    }
+}
+
+pub struct BluetoothConnectedController<'life0> {
+    peripheral: &'life0 mut Peripheral,
+}
+
+#[async_trait]
+impl Controller for BluetoothConnectedController<'_> {
+    async fn write(&mut self, characteristic: &Characteristic, value: Vec<u8>) {
+        self.peripheral
+            .write(characteristic, value.as_slice(), WriteType::WithoutResponse);
     }
     async fn is_connected(&mut self) -> bool {
         true

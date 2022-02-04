@@ -15,9 +15,8 @@ pub async fn on_ws_message<C: Controller>(
             ClientCommand::LedSet { r, g, b } => {
                 let characteristic_uuid = Uuid::nil();
                 let new_value: Vec<u8> = vec![r, g, b];
-                controller_handle
-                    .write(characteristic_uuid, new_value)
-                    .await;
+                // TODO call the write with the correct characteristic
+                // controller_handle .write(characteristic_uuid, new_value).await;
             }
             ClientCommand::RumbleStop => {}
             ClientCommand::RumbleStart => {}
