@@ -12,6 +12,7 @@ pub enum ClientCommand {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClientUpdate {
+    BatteryStatusChanged { charge: u8 },
     ButtonADown,
     ButtonAUp,
     ButtonBDown,

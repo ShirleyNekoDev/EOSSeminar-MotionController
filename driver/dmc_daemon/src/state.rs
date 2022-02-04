@@ -107,6 +107,10 @@ impl JoystickState {
     pub fn from_raw_f16s(raw_x: u16, raw_y: u16) -> Self {
         JoystickState { x: unpack_float(raw_x), y: unpack_float(raw_y) }
     }
+
+    fn clamped(&mut self) -> Self {
+        JoystickState { x: self.x.clamp(-1.0, 1.0), y: self.y.clamp(-1.0, 1.0) }
+    }
 }
 
 impl Into<ClientUpdate> for JoystickState {
@@ -120,38 +124,52 @@ impl Into<ClientUpdate> for JoystickState {
 pub fn build_classic_control_updates(controller_state: &mut ControllerState, value: &Vec<u8>) -> Option<Vec<u8>> {
     assert!(value.len() == 5, "ClassicControlsCharacteristic's value must be 5 bytes.");
     let mut update_chain = Vec::<u8>::new();
-
+    let mut update_count: u8 = 0;
 
     let raw_x: u16 = u16::from_le_bytes(value.as_slice()[0..2].try_into().unwrap());
     let raw_y: u16 = u16::from_le_bytes(value.as_slice()[2..4].try_into().unwrap());
-    let button_byte = value[4];
+    // let button_byte = value[4];
+    let button_byte = value[0]; // TODO: temporary
     let button_a = (button_byte & 1u8 << 7) > 0;
     let button_b = (button_byte & 1u8 << 6) > 0;
     let button_menu = (button_byte & 1u8 << 5) > 0;
 
+    {
+        // TODO: temporary - remove
+        let update: ClientUpdate = ClientUpdate::BatteryStatusChanged { charge: value[0] };
+        let mut raw_message = bincode::serialize(&update).unwrap();
+        update_chain.append(&mut raw_message);
+        update_count+=1;
+    }
+
     // Update joystick data
-    let joystick_data_read = JoystickState::from_raw_f16s(raw_x, raw_y);
+    let joystick_data_read = JoystickState::from_raw_f16s(raw_x, raw_y).clamped();
     if joystick_data_read != controller_state.joystick_state {
         controller_state.joystick_state = joystick_data_read;
         let update: ClientUpdate = controller_state.joystick_state.into();
         let mut raw_message = bincode::serialize(&update).unwrap();
         update_chain.append(&mut raw_message);
+        update_count+=1;
     }
 
     // Update button data
     if let Some(update) = controller_state.button_a_state_transition(button_a) {
         update_chain.append(&mut bincode::serialize(&update).unwrap());
+        update_count+=1;
     }
     if let Some(update) = controller_state.button_b_state_transition(button_b) {
         update_chain.append(&mut bincode::serialize(&update).unwrap());
+        update_count+=1;
     }
     if let Some(update) = controller_state.button_menu_state_transition(button_menu) {
         update_chain.append(&mut bincode::serialize(&update).unwrap());
+        update_count+=1;
     }
 
     if update_chain.is_empty() {
         None
     } else {
+        println!("Packed {} ClassicControl updates", update_count);
         Some(update_chain)
     }
 }
