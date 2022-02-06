@@ -139,8 +139,6 @@ pub fn build_classic_control_updates(
         value.len() == 5,
         "ClassicControlsCharacteristic's value must be 5 bytes."
     );
-    let mut update_chain = Vec::<u8>::new();
-    let mut update_count: u8 = 0;
 
     let raw_x: u16 = u16::from_le_bytes(value.as_slice()[0..2].try_into().unwrap());
     let raw_y: u16 = u16::from_le_bytes(value.as_slice()[2..4].try_into().unwrap());
@@ -150,12 +148,11 @@ pub fn build_classic_control_updates(
     let button_b = (button_byte & 1u8 << 6) > 0;
     let button_menu = (button_byte & 1u8 << 5) > 0;
 
+    let mut updates: Vec<ClientUpdate> = Vec::new();
     {
         // TODO: temporary - remove
         let update: ClientUpdate = ClientUpdate::BatteryStatusChanged { charge: value[0] };
-        let mut raw_message = serde_json::to_string(&update).unwrap().as_bytes().to_vec();
-        update_chain.append(&mut raw_message);
-        update_count += 1;
+        updates.push(update);
     }
 
     // Update joystick data
@@ -163,32 +160,24 @@ pub fn build_classic_control_updates(
     if joystick_data_read != controller_state.joystick_state {
         controller_state.joystick_state = joystick_data_read;
         let update: ClientUpdate = controller_state.joystick_state.into();
-        let mut raw_message = serde_json::to_string(&update).unwrap().as_bytes().to_vec();
-        update_chain.append(&mut raw_message);
-        update_count += 1;
+        updates.push(update);
     }
 
     // Update button data
     if let Some(update) = controller_state.button_a_state_transition(button_a) {
-        let mut raw_message = serde_json::to_string(&update).unwrap().as_bytes().to_vec();
-        update_chain.append(&mut raw_message);
-        update_count += 1;
+        updates.push(update);
     }
     if let Some(update) = controller_state.button_b_state_transition(button_b) {
-        let mut raw_message = serde_json::to_string(&update).unwrap().as_bytes().to_vec();
-        update_chain.append(&mut raw_message);
-        update_count += 1;
+        updates.push(update);
     }
     if let Some(update) = controller_state.button_menu_state_transition(button_menu) {
-        let mut raw_message = serde_json::to_string(&update).unwrap().as_bytes().to_vec();
-        update_chain.append(&mut raw_message);
-        update_count += 1;
+        updates.push(update);
     }
 
-    if update_chain.is_empty() {
+    if updates.is_empty() {
         None
     } else {
-        println!("Packed {} ClassicControl updates", update_count);
-        Some(update_chain)
+        println!("Emitting {} ClassicControl updates...", updates.len());
+        Some(serde_json::to_string(&updates).unwrap().as_bytes().to_vec())
     }
 }
