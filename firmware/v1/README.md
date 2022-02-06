@@ -80,3 +80,7 @@ Battery Service -> Battery Level
 - BUTTON_B: IO8
 - RUMBLE_CONTROL: IO6
 
+# Known issues
+- Once disconnected from the controller, you can neither discover it during a
+  scan, nor connect to it again. This is a [known bug of the ESP32 Arduino
+  Core](https://github.com/espressif/arduino-esp32/issues/6016).
