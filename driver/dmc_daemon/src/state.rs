@@ -134,7 +134,7 @@ impl Into<ClientUpdate> for JoystickState {
 pub fn build_classic_control_updates(
     controller_state: &mut ControllerState,
     value: &Vec<u8>,
-) -> Option<Vec<u8>> {
+) -> Option<String> {
     assert!(
         value.len() == 5,
         "ClassicControlsCharacteristic's value must be 5 bytes."
@@ -178,6 +178,6 @@ pub fn build_classic_control_updates(
         None
     } else {
         println!("Emitting {} ClassicControl updates...", updates.len());
-        Some(serde_json::to_string(&updates).unwrap().as_bytes().to_vec())
+        Some(serde_json::to_string(&updates).unwrap())
     }
 }

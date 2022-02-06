@@ -55,117 +55,34 @@
     </style>
     <script>
       var ws;
-      const td = new TextDecoder();
-      const te = new TextEncoder();
+      // const ClientUpdate = {
+      //   ButtonADown: {},
+      //   ButtonAUp: {},
+      //   ButtonBDown: {},
+      //   ButtonBUp: {},
+      //   ButtonMenuDown: {},
+      //   ButtonMenuUp: {},
+      //   JoystickMoved: {
+      //     x: "f32",
+      //     y: "f32",
+      //   },
+      //   BatteryStatusChanged: {
+      //     charge: "u8"
+      //   },
+      // };
 
-      function byte_length_of_field_type(field_type) {
-        switch (field_type) {
-          case "f32":
-            return 4;
-          case "i32":
-            return 4;
-          case "u32":
-            return 1;
-          case "i8":
-            return 1;
-          case "u8":
-            return 1;
-          default:
-            throw new Error(`unknown type "${type_name}'"`);
-        }
-      }
-      function reader_for_field_type(field_type) {
-        switch (field_type) {
-          case "f32":
-            return (data_view, byte_offset) =>
-              data_view.getFloat32(byte_offset, true);
-          case "i32":
-            return (data_view, byte_offset) =>
-              data_view.getInt32(byte_offset, true);
-          case "u32":
-            return (data_view, byte_offset) =>
-              data_view.getUint32(byte_offset, true);
-          case "i8":
-            return (data_view, byte_offset) => data_view.getInt8(byte_offset);
-          case "u8":
-            return (data_view, byte_offset) => data_view.getUint8(byte_offset);
-          default:
-            throw new Error(`unknown type "${type_name}"`);
-        }
-      }
-      function writer_for_field_type(field_type) {
-        switch (field_type) {
-          case "f32":
-            return (data_view, value, byte_offset) =>
-              data_view.setFloat32(byte_offset, value, true);
-          case "i32":
-            return (data_view, value, byte_offset) =>
-              data_view.setInt32(byte_offset, value, true);
-          case "u32":
-            return (data_view, value, byte_offset) =>
-              data_view.setUint32(byte_offset, value, true);
-          case "i8":
-            return (data_view, value, byte_offset) =>
-            data_view.setInt8(byte_offset, value);
-          case "u8":
-            return (data_view, value, byte_offset) =>
-            data_view.setUint8(byte_offset, value);
-          default:
-            throw new Error(`unknown type "${type_name}"`);
-        }
-      }
-      function resolve_payload_metadata(payload_definition) {
-        let meta = {
-          fields: {},
-          total_length: 0,
-        };
-        for (field_name in payload_definition) {
-          const field_type = payload_definition[field_name];
-          const field_length = byte_length_of_field_type(field_type);
-          meta.fields[field_name] = {
-            length: field_length,
-            read: reader_for_field_type(field_type),
-            write: writer_for_field_type(field_type),
-          };
-          meta.total_length += field_length;
-        }
-        payload_definition.meta = meta;
-      }
-
-      const ClientUpdate = {
-        ButtonADown: {},
-        ButtonAUp: {},
-        ButtonBDown: {},
-        ButtonBUp: {},
-        ButtonMenuDown: {},
-        ButtonMenuUp: {},
-        JoystickMoved: {
-          x: "f32",
-          y: "f32",
-        },
-        BatteryStatusChanged: {
-          charge: "u8"
-        },
-      };
-      Object.keys(ClientUpdate).forEach((payload_type_name) => {
-        resolve_payload_metadata(ClientUpdate[payload_type_name]);
-      });
-
-      const ClientCommand = {
-        LedSet: {
-          r: "u8",
-          g: "u8",
-          b: "u8"
-        },
-        RumbleStart: {},
-        RumbleStop: {},
-        RumbleBurst: {
-          length: "u8"
-        },
-      };
-      Object.keys(ClientCommand).forEach((payload_type_name) => {
-        resolve_payload_metadata(ClientCommand[payload_type_name]);
-      });
+      // const ClientCommand = {
+      //   LedSet: {
+      //     r: "u8",
+      //     g: "u8",
+      //     b: "u8"
+      //   },
+      //   RumbleStart: {},
+      //   RumbleStop: {},
+      //   RumbleBurst: {
+      //     length: "u8"
+      //   },
+      // };
 
       let wsOutput;
       const joystickElements = {};
@@ -208,36 +125,17 @@
       async function connect() {
         console.log("connect");
         ws = new WebSocket("ws://127.0.0.1:9001");
-        ws.binaryType = "arraybuffer";
         ws.addEventListener("message", (event) => {
-          if (!(event.data instanceof ArrayBuffer)) {
-            throw "invalid data type";
+          if((!typeof event.data === "string")) {
+            throw new Error("invalid data type");
           }
-          const view = new DataView(event.data);
-          const u8arr = new Uint8Array(event.data);
-          let position = 0;
-
-          while (position <= u8arr.length - 8) {
-            const length = view.getUint32(position, true);
-            position += 8;
-            const type_name = td.decode(
-              u8arr.subarray(position, position + length)
-            );
-            position += length;
-
-            const type = ClientUpdate[type_name];
-            if (!type) {
-              throw new Error(`unknown type "${type_name}"`);
-            }
-
-            const payload = {};
-            for (field_name in type.meta.fields) {
-              const field_meta = type.meta.fields[field_name];
-              payload[field_name] = field_meta.read(view, position);
-              position += field_meta.length;
-            }
-            handle_command(type_name, payload);
+          let commands = JSON.parse(event.data);
+          if(!commands || !commands.length) {
+            throw new Error("malformed message");
           }
+          commands.forEach(command => {
+            handle_command(command.type, command.content);
+          });
         });
       }
 
@@ -299,50 +197,17 @@
         }
       }
 
-      function sendCommand(command, payload_params) {
+      function sendCommand(command, payload) {
         if(!ws || ws.readyState !== 1) {
           throw new Error("not connected");
         }
 
-        const type = ClientCommand[command];
-        if (!type) {
-          throw new Error(`unknown type "${type_name}"`);
-        }
-
-        const length = command.length;
-        const payload_length = type.meta.total_length;
-
-        const buffer = new ArrayBuffer(8 + length + payload_length);
-        const view = new DataView(buffer);
-        const u8arr = new Uint8Array(buffer);
-
-        let position = 0;
-        view.setUint32(position, length, true);
-        position += 8;
-
-        te.encodeInto(
-          command,
-          u8arr.subarray(position, position + length)
-        );
-        position += length;
-
-        for (field_name in type.meta.fields) {
-          const field_meta = type.meta.fields[field_name];
-          const field_data = payload_params[field_name];
-          if(field_data === undefined) {
-            throw new Error(`missing required argument "${field_name}"`);
-          }
-          field_meta.write(view, field_data, position);
-          position += field_meta.length;
-        }
-
-        console.log(command);
-        console.log(
-          [...u8arr]
-          .map(byte => byte.toString(16).padStart(2, "0"))
-        );
-        
-        ws.send(buffer);
+        const data = {
+          type: command,
+          content: payload,
+        };
+        console.log(data);
+        ws.send(JSON.stringify(data));
       }
 
       function setLed() {
