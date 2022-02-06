@@ -142,11 +142,11 @@ pub fn build_classic_control_updates(
 
     let raw_x: u16 = u16::from_le_bytes(value.as_slice()[0..2].try_into().unwrap());
     let raw_y: u16 = u16::from_le_bytes(value.as_slice()[2..4].try_into().unwrap());
-    // let button_byte = value[4];
-    let button_byte = value[0]; // TODO: temporary
-    let button_a = (button_byte & 1u8 << 7) > 0;
-    let button_b = (button_byte & 1u8 << 6) > 0;
-    let button_menu = (button_byte & 1u8 << 5) > 0;
+
+    let button_byte = value[4];
+    let button_a = (button_byte & 1u8 << 0) == 0;
+    let button_b = (button_byte & 1u8 << 1) == 0;
+    let button_menu = (button_byte & 1u8 << 2) == 0;
 
     let mut updates: Vec<ClientUpdate> = Vec::new();
     {
