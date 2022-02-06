@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(tag = "type", content = "content")]
 pub enum ClientCommand {
     LedSet {
         r: u8,
@@ -16,7 +16,7 @@ pub enum ClientCommand {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(tag = "type", content = "content")]
 pub enum ClientUpdate {
     BatteryStatusChanged { charge: u8 },
     ButtonADown,

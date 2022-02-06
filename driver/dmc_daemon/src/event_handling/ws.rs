@@ -11,7 +11,7 @@ pub async fn on_ws_message<C: Controller>(
 ) -> Result<(), Box<dyn Error>> {
     // TODO implement the commands
     if let Message::Binary(data) = msg {
-        match bincode::deserialize::<ClientCommand>(&data).unwrap() {
+        match serde_json::from_slice::<ClientCommand>(&data).unwrap() {
             ClientCommand::LedSet { r, g, b } => {
                 let characteristic_uuid = Uuid::nil();
                 let new_value: Vec<u8> = vec![r, g, b];

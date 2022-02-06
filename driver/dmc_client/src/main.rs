@@ -1,11 +1,11 @@
 use dmc::{ClientCommand, ClientUpdate};
-use bincode;
-use std::io::Write;
 use serde::Serialize;
+use serde_json::to_string;
+use std::io::Write;
 
 fn write_to_stdout<T: Serialize>(cmd: &T) {
-    let raw_data = bincode::serialize(&cmd).unwrap();
-    let raw_data_slice = raw_data.as_slice();
+    let raw_data = to_string(&cmd).unwrap();
+    let raw_data_slice = raw_data.as_bytes();
     std::io::stdout().write_all(raw_data_slice).unwrap();
 }
 
