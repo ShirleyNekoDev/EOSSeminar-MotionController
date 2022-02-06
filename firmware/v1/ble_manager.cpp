@@ -26,6 +26,7 @@ public:
   void onConnect(BLEServer *) override {
     clientConnected = true;
     // TODO initiate state change somehow
+    // TODO send initial state
   }
   void onDisconnect(BLEServer *server) override {
     clientConnected = false;
