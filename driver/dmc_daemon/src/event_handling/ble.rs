@@ -18,7 +18,7 @@ pub async fn on_ble_notification(
             if let Some(chain) =
                 crate::state::build_classic_control_updates(controller_state, &value)
             {
-                ws_sender.send(Message::binary(chain)).await?;
+                ws_sender.send(Message::text(chain)).await?;
             }
             println!("new controller state: {:?}", controller_state);
         }

@@ -126,7 +126,7 @@
         console.log("connect");
         ws = new WebSocket("ws://127.0.0.1:9001");
         ws.addEventListener("message", (event) => {
-          if((!typeof event.data === "string")) {
+          if(!(typeof event.data === "string")) {
             throw new Error("invalid data type");
           }
           let commands = JSON.parse(event.data);
