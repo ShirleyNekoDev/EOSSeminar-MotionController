@@ -1,13 +1,17 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClientCommand {
-    LedSet { r: u8, g: u8, b: u8 },
+    LedSet {
+        r: u8,
+        g: u8,
+        b: u8,
+    },
     RumbleStart,
     RumbleStop,
     RumbleBurst {
-        length: u8 // * 10ms (therefore 1 => 10ms, 255 => 2550ms)
+        length: u8, // * 10ms (therefore 1 => 10ms, 255 => 2550ms)
     },
 }
 
@@ -21,9 +25,8 @@ pub enum ClientUpdate {
     ButtonBUp,
     ButtonMenuDown,
     ButtonMenuUp,
-    JoystickMoved { x: f32, y: f32 }
+    JoystickMoved { x: f32, y: f32 },
 }
-
 
 #[cfg(test)]
 mod tests {
