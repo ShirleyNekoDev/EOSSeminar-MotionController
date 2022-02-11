@@ -2,5 +2,6 @@
 members = [
     "dmc",
     "dmc_client",
-    "dmc_daemon"
+    "dmc_daemon",
+    "dmc_vigem_client"
 ]

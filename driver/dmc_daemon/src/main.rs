@@ -1,4 +1,5 @@
 use btleplug::api::ValueNotification;
+use futures::SinkExt;
 use futures::stream::{SplitSink, SplitStream, StreamExt};
 use std::error::Error;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -66,6 +67,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         let mut controller_handle = FakeController;
 
+        match controller_state.connect() {
+            Some(connect) => {
+                let connect = serde_json::to_string(&[connect]).unwrap();
+                ws_sender.send(Message::text(connect)).await?;
+            }
+            _ => panic!("illegal state")
+        }
+
         match work_loop(
             &mut controller_state,
             &mut controller_handle,
@@ -78,6 +87,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
             Ok(()) => {}
             Err(_) => {
                 // TODO handle errors (ble disconnect, ws disconnect)
+                match controller_state.disconnect() {
+                    Some(disconnect) => {
+                        let disconnect = serde_json::to_string(&[disconnect]).unwrap();
+                        ws_sender.send(Message::text(disconnect)).await?;
+                    }
+                    _ => ()
+                }
             }
         }
     }

@@ -10,6 +10,7 @@ enum ButtonState {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ControllerState {
+    is_connected: bool,
     battery_level: u8,
     joystick_state: JoystickState,
     button_a_state: ButtonState,
@@ -27,6 +28,24 @@ impl ControllerState {
         self.joystick_state.x = angle.cos() * amplitude;
         self.joystick_state.y = angle.sin() * amplitude;
         self.joystick_state.into()
+    }
+
+    pub fn connect(&mut self) -> Option<ClientUpdate> {
+        if self.is_connected {
+            return None;
+        } else {
+            self.is_connected = true;
+            return Some(ClientUpdate::Connected);
+        }
+    }
+    
+    pub fn disconnect(&mut self) -> Option<ClientUpdate> {
+        if !self.is_connected {
+            return None;
+        } else {
+            self.is_connected = false;
+            return Some(ClientUpdate::Disconnected);
+        }
     }
 
     // Returns whether or not the state was updated.
