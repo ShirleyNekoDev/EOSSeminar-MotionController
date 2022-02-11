@@ -38,7 +38,7 @@ impl ControllerState {
             return Some(ClientUpdate::Connected);
         }
     }
-    
+
     pub fn disconnect(&mut self) -> Option<ClientUpdate> {
         if !self.is_connected {
             return None;
@@ -100,6 +100,7 @@ impl ControllerState {
 impl ControllerState {
     pub fn new() -> Self {
         ControllerState {
+            is_connected: false,
             battery_level: 255,
             joystick_state: JoystickState::new(),
             button_a_state: ButtonState::UP,
@@ -153,7 +154,7 @@ impl Into<ClientUpdate> for JoystickState {
 pub fn build_classic_control_updates(
     controller_state: &mut ControllerState,
     value: &Vec<u8>,
-) -> Option<String> {
+) -> Option<Vec<ClientUpdate>> {
     assert!(
         value.len() == 5,
         "ClassicControlsCharacteristic's value must be 5 bytes."
@@ -196,7 +197,6 @@ pub fn build_classic_control_updates(
     if updates.is_empty() {
         None
     } else {
-        println!("Emitting {} ClassicControl updates...", updates.len());
-        Some(serde_json::to_string(&updates).unwrap())
+        Some(updates)
     }
 }

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(tag = "type", content = "content")]
 pub enum ClientCommand {
     LedSet {
@@ -15,7 +15,7 @@ pub enum ClientCommand {
     },
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(tag = "type", content = "content")]
 pub enum ClientUpdate {
     Connected,
