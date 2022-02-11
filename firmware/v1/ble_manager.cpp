@@ -82,6 +82,19 @@ void DMCCharacteristic::write(uint8_t *data, size_t length) {
   }
 }
 
+void DMCCharacteristic::read(uint8_t *data, size_t length) {
+  ESP_LOGV(TAG, "Reading %i bytes from characteristic \"%s\"", length, name_);
+  if (length > characteristic_->getLength()) {
+    ESP_LOGE(TAG, "Read too much from characteristic \"%s\" (actual size %i)",
+             name_, characteristic_->getLength());
+  }
+  // copy byte by byte
+  // TODO optimize this or use library
+  for (size_t i = 0; i < length; i++) {
+    data[i] = characteristic_->getData()[i];
+  }
+}
+
 } // namespace ble
 
 } // namespace dmc

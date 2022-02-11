@@ -1,5 +1,6 @@
 #include "ble/classic_characteristic.h"
 
+#include "ble/classic_characteristic.h"
 #include "ble_abstraction.h"
 #include "constants.h"
 #include "services/button_service.h"

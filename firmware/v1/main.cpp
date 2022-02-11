@@ -3,10 +3,12 @@
 #include "esp_log.h"
 
 #include "ble/classic_characteristic.h"
+#include "ble/led_characteristic.h"
 #include "ble_manager.h"
 #include "board_definitions.h"
 #include "services/button_service.h"
 #include "services/joystick_service.h"
+#include "services/led_service.h"
 #include "version.h"
 #include <Arduino.h>
 #include <Wire.h>
@@ -30,7 +32,9 @@ using namespace dmc;
 namespace {
 button::Status button_status;
 joystick::Status joystick_status;
+led::Status led_status;
 ble::ClassicControlsCharacteristic *cc_ch;
+ble::LedCharacteristic *led_ch;
 } // namespace
 
 void setup() {
@@ -57,11 +61,15 @@ void setup() {
   // Setup joystick
   joystick::start();
 
+  // Setup joystick
+  led::start();
+
   // Initialize bluetooth
   ble::initialize();
 
   // Start the characteristics
   cc_ch = new ble::ClassicControlsCharacteristic();
+  led_ch = new ble::LedCharacteristic();
 
   ble::start();
 
@@ -87,6 +95,15 @@ void loop() {
     if (update_required) {
       ESP_LOGD(TAG, "Issuing an update to the CC Characteristic.");
       cc_ch->update(button_status, joystick_status);
+    }
+  }
+
+  { // Haptic and visual _Feedback_
+    led::refresh();
+    // read write characteristics
+    if (led_ch->read_update(led_status)) {
+      ESP_LOGD(TAG, "LED color was updated.");
+      led::write_status(led_status);
     }
   }
 

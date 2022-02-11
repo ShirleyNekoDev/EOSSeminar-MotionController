@@ -1,23 +1,35 @@
-#include <stdint.h>
+#include "services/led_service.h"
+#include "board_definitions.h"
 
-enum LedBlinkMode {
-  ONCE = 1,
-  THRICE = 2,
-  CONTINUOUS = 3
-};
-enum LedBlinkSpeed {
-  FAST = true,
-  SLOW = false,
-};
+#include <Arduino.h>
 
-void service_led_set_color(uint8_t red, uint8_t green, uint8_t blue) {
-  // TODO
+namespace dmc {
+
+namespace led {
+
+void start() {
+  // Attach led pins to pwm channels
+  ledcAttachPin(PIN_LED_R, 1);
+  ledcAttachPin(PIN_LED_G, 2);
+  ledcAttachPin(PIN_LED_B, 3);
+
+  // initialize channels
+  ledcSetup(1, 12000, 8); // 12 kHz, 8bit resolution
+  ledcSetup(2, 12000, 8); // 12 kHz, 8bit resolution
+  ledcSetup(3, 12000, 8); // 12 kHz, 8bit resolution
+  // TODO put magic numbers somewhere else
 }
 
-void service_led_off() {
-  // TODO
+void refresh() {
+  // no operation for now
 }
 
-void service_led_blink(LedBlinkMode mode, LedBlinkSpeed speed) {
-  // TODO
+void write_status(Status &led_status) {
+  ledcWrite(1, led_status.r);
+  ledcWrite(2, led_status.g);
+  ledcWrite(3, led_status.b);
 }
+
+} // namespace led
+
+} // namespace dmc

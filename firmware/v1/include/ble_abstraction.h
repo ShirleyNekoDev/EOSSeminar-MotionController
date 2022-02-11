@@ -18,7 +18,7 @@ protected:
                              bool write, bool notify, size_t data_size);
 
   void write(uint8_t *data, size_t length);
-  // TODO add some kind of read wrapper
+  void read(uint8_t *data, size_t length);
 
 private:
   BLECharacteristic *characteristic_;

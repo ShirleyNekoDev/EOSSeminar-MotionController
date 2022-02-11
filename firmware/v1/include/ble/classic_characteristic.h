@@ -9,7 +9,7 @@ namespace dmc {
 
 namespace ble {
 
-class ClassicControlsCharacteristic : dmc::ble::DMCCharacteristic {
+class ClassicControlsCharacteristic : public DMCCharacteristic {
 public:
   explicit ClassicControlsCharacteristic();
   void update(button::Status &button_status, joystick::Status &joystick_status);
