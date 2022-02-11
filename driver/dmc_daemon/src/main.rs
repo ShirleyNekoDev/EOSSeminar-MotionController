@@ -2,10 +2,6 @@ use btleplug::api::ValueNotification;
 use futures::stream::StreamExt;
 use futures::SinkExt;
 use std::error::Error;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering::Relaxed},
-    Arc,
-};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast;
@@ -26,54 +22,42 @@ enum WebSocketTaskError {
 
 async fn ws_task(
     command_tx: broadcast::Sender<ClientCommand>,
-    mut update_rx: broadcast::Receiver<Vec<ClientUpdate>>,
-    clients_connected: Arc<AtomicUsize>,
+    update_tx: broadcast::Sender<Vec<ClientUpdate>>,
+    ws_stream: WebSocketStream<TcpStream>,
 ) -> Result<(), WebSocketTaskError> {
-    let addr = "127.0.0.1:9001";
-    let server = TcpListener::bind(&addr)
-        .await
-        .expect("Cannot listen on port 9001.");
-    println!("WebSocket server ready on ws://{}", addr);
+    let mut update_rx = update_tx.subscribe();
+    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
 
     loop {
-        let ws_stream = match wait_for_client_connection(&server).await {
-            Ok(ws_stream) => ws_stream,
-            Err(_) => return Err(WebSocketTaskError::UnexpectedError),
-        };
-        clients_connected.fetch_add(1, Relaxed);
-        let (mut ws_sender, mut ws_receiver) = ws_stream.split();
-
-        loop {
-            tokio::select! {
-                result = update_rx.recv() => {
-                    match result {
-                        Ok(msgs) => {
-                            let update_pack = serde_json::to_string(&msgs).unwrap();
-                            match ws_sender.send(Message::text(update_pack)).await {
-                                Ok(()) => (),
-                                Err(_) => return Err(WebSocketTaskError::UnexpectedError),
-                            };
-                        },
-                        Err(_) => {},
-                    }
-                },
-                Some(result) = ws_receiver.next() => {
-                    match result {
-                        Ok(Message::Text(msg)) => {
-                            // on_ws_message(controller_state, controller_handle, msg).await?,
-                            let command = serde_json::from_str::<ClientCommand>(msg.as_str()).unwrap();
-                            command_tx.send(command).unwrap();
-                        },
-                        Ok(_) => println!("Received NOT text message from web socket."),
-                        Err(TError::ConnectionClosed) => break,
-                        Err(TError::Protocol(_)) => break,
-                        Err(e) => panic!("Failed to receive something from websocket: {}", e),
-                    }
-                },
-            }
+        tokio::select! {
+            result = update_rx.recv() => {
+                match result {
+                    Ok(msgs) => {
+                        let update_pack = serde_json::to_string(&msgs).unwrap();
+                        match ws_sender.send(Message::text(update_pack)).await {
+                            Ok(()) => (),
+                            Err(_) => return Err(WebSocketTaskError::UnexpectedError),
+                        };
+                    },
+                    Err(_) => {},
+                }
+            },
+            Some(result) = ws_receiver.next() => {
+                match result {
+                    Ok(Message::Text(msg)) => {
+                        let command = serde_json::from_str::<ClientCommand>(msg.as_str()).unwrap();
+                        command_tx.send(command).unwrap();
+                    },
+                    Ok(Message::Close(_)) => break,
+                    Ok(any) => println!("Received unhandled message type from web socket: {:?}", any),
+                    Err(TError::ConnectionClosed) => break,
+                    Err(TError::Protocol(_)) => break,
+                    Err(e) => panic!("Failed to receive something from websocket: {}", e),
+                }
+            },
         }
-        clients_connected.fetch_sub(1, Relaxed);
     }
+    Ok(())
 }
 
 enum BLETaskError {
@@ -82,8 +66,7 @@ enum BLETaskError {
 
 async fn ble_task(
     update_tx: broadcast::Sender<Vec<ClientUpdate>>,
-    mut command_rx: broadcast::Receiver<ClientCommand>,
-    clients_connected: Arc<AtomicUsize>,
+    command_tx: broadcast::Sender<ClientCommand>,
 ) -> Result<(), BLETaskError> {
     let interval = tokio::time::interval(Duration::from_secs(1));
     let interval_stream = IntervalStream::new(interval);
@@ -97,6 +80,8 @@ async fn ble_task(
             uuid: CLASSIC_CONTROL_CHARACTERISTIC_UUID,
         }
     });
+
+    let mut command_rx = command_tx.subscribe();
 
     let mut controller_state = ControllerState::new();
 
@@ -113,9 +98,11 @@ async fn ble_task(
             Some(data) = notification_stream.next() => {
                 match on_ble_notification(&mut controller_state, data.uuid, data.value).await {
                     Ok(Some(chain)) => {
-                        if clients_connected.load(Relaxed) > 0 {
-                            println!("Emitting {} client updates into channel...", chain.len());
+                        if update_tx.receiver_count() > 0 {
+                            println!("Emitting {} packed client updates to {} listeners", chain.len(), update_tx.receiver_count());
                             update_tx.send(chain).unwrap();
+                        } else {
+                            println!("Ignore {} packed client updates because there are no listeners", chain.len());
                         }
                     },
                     Ok(None) => (),
@@ -130,28 +117,42 @@ async fn ble_task(
     }
 }
 
+async fn init_ws(
+    command_tx: broadcast::Sender<ClientCommand>,
+    update_tx: broadcast::Sender<Vec<ClientUpdate>>,
+) -> Result<(), WebSocketTaskError> {
+    let addr = "127.0.0.1:9001";
+    let server = TcpListener::bind(&addr)
+        .await
+        .expect("Cannot listen on port 9001.");
+    println!("WebSocket server ready on ws://{}", addr);
+
+    while let Ok((stream, _)) = server.accept().await {
+        let peer = stream.peer_addr().unwrap();
+        println!("We are connected to a new client with address {}", peer);
+        match accept_async(stream).await {
+            Ok(ws_stream) => {
+                println!("WebSocket connected successfully");
+                tokio::spawn(ws_task(command_tx.clone(), update_tx.clone(), ws_stream));
+            }
+            Err(e) => println!("Failed to connect WS: {}", e),
+        }
+    }
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // create communcation channels
-    let (update_tx, update_rx) = broadcast::channel::<Vec<ClientUpdate>>(32);
-    let (command_tx, command_rx) = broadcast::channel::<ClientCommand>(32);
-
-    // create shared variables
-    let clients_connected = Arc::new(AtomicUsize::new(0));
+    let (update_tx, _) = broadcast::channel::<Vec<ClientUpdate>>(32);
+    let (command_tx, _) = broadcast::channel::<ClientCommand>(32);
 
     // start WS thread
-    let server_thread = tokio::spawn(ws_task(
-        command_tx.clone(),
-        update_rx,
-        clients_connected.clone(),
-    ));
+    let ws_thread = tokio::spawn(init_ws(command_tx.clone(), update_tx.clone()));
 
     // start BLE thread
-    let ble_thread = tokio::spawn(ble_task(
-        update_tx.clone(),
-        command_rx,
-        clients_connected.clone(),
-    ));
+    let ble_thread = tokio::spawn(ble_task(update_tx.clone(), command_tx.clone()));
 
     // let manager = Manager::new().await.unwrap();
 
@@ -174,23 +175,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // }
 
     // let mut notification_stream = controller_peripheral.notifications().await?;
-    let _ = server_thread.await?;
-    let _ = ble_thread.await?;
+    
+    let (_, _) = tokio::join!(ws_thread, ble_thread);
     Ok(())
-}
-
-async fn wait_for_client_connection(
-    server: &TcpListener,
-) -> Result<WebSocketStream<TcpStream>, Box<dyn Error>> {
-    println!("Waiting for connection...");
-    let (stream, _) = server.accept().await?;
-    let peer = stream
-        .peer_addr()
-        .expect("connected streams should have a peer address");
-    println!("We are connected to a new peer with address {}", peer);
-    let ws_stream = accept_async(stream)
-        .await
-        .expect("Failed to accept websocket.");
-    println!("WebSocket connection successful");
-    return Ok(ws_stream);
 }
