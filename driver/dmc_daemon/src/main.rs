@@ -1,4 +1,5 @@
 use btleplug::api::ValueNotification;
+use dmc_daemon::ble_connection::Controller;
 use futures::stream::StreamExt;
 use futures::SinkExt;
 use std::error::Error;
@@ -16,8 +17,34 @@ use dmc_daemon::{
     ble_connection::FakeController, ble_spec::*, event_handling::*, state::ControllerState,
 };
 
+#[derive(Debug)]
 enum WebSocketTaskError {
     UnexpectedError,
+}
+
+async fn init_ws(
+    command_tx: broadcast::Sender<ClientCommand>,
+    update_tx: broadcast::Sender<Vec<ClientUpdate>>,
+) -> Result<(), WebSocketTaskError> {
+    let addr = "127.0.0.1:9001";
+    let server = TcpListener::bind(&addr)
+        .await
+        .expect("Cannot listen on port 9001.");
+    println!("WebSocket server ready on ws://{}", addr);
+
+    while let Ok((stream, _)) = server.accept().await {
+        let peer = stream.peer_addr().unwrap();
+        println!("We are connected to a new client with address {}", peer);
+        match accept_async(stream).await {
+            Ok(ws_stream) => {
+                println!("WebSocket connected successfully");
+                tokio::spawn(ws_task(command_tx.clone(), update_tx.clone(), ws_stream));
+            }
+            Err(e) => println!("Failed to connect WS: {}", e),
+        }
+    }
+
+    Ok(())
 }
 
 async fn ws_task(
@@ -60,6 +87,7 @@ async fn ws_task(
     Ok(())
 }
 
+#[derive(Debug)]
 enum BLETaskError {
     UnexpectedError,
 }
@@ -87,6 +115,12 @@ async fn ble_task(
 
     let mut controller_handle = FakeController;
 
+    if controller_handle.is_connected().await {
+        if update_tx.receiver_count() > 0 {
+            update_tx.send(vec![ClientUpdate::Connected]).unwrap();
+        }
+    }
+
     loop {
         tokio::select! {
             Ok(command) = command_rx.recv() => {
@@ -111,35 +145,15 @@ async fn ble_task(
             },
             _ = sleep(Duration::from_secs(10)) => {
                 // TODO check whether BLE connection is still up
+                if !controller_handle.is_connected().await {
+                    if update_tx.receiver_count() > 0 {
+                        update_tx.send(vec![ClientUpdate::Disconnected]).unwrap();
+                    }
+                }
             }
 
         }
     }
-}
-
-async fn init_ws(
-    command_tx: broadcast::Sender<ClientCommand>,
-    update_tx: broadcast::Sender<Vec<ClientUpdate>>,
-) -> Result<(), WebSocketTaskError> {
-    let addr = "127.0.0.1:9001";
-    let server = TcpListener::bind(&addr)
-        .await
-        .expect("Cannot listen on port 9001.");
-    println!("WebSocket server ready on ws://{}", addr);
-
-    while let Ok((stream, _)) = server.accept().await {
-        let peer = stream.peer_addr().unwrap();
-        println!("We are connected to a new client with address {}", peer);
-        match accept_async(stream).await {
-            Ok(ws_stream) => {
-                println!("WebSocket connected successfully");
-                tokio::spawn(ws_task(command_tx.clone(), update_tx.clone(), ws_stream));
-            }
-            Err(e) => println!("Failed to connect WS: {}", e),
-        }
-    }
-
-    Ok(())
 }
 
 #[tokio::main]
@@ -175,7 +189,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // }
 
     // let mut notification_stream = controller_peripheral.notifications().await?;
-    
-    let (_, _) = tokio::join!(ws_thread, ble_thread);
+
+    #[cfg(target_family = "windows")]
+    let _ = tokio::spawn(async {
+        // TODO: put ViGem Client here
+    })
+    .await?;
+
+    let _ = ws_thread.await?;
+    let _ = ble_thread.await?;
     Ok(())
 }
