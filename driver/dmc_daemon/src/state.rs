@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 use dmc::ClientUpdate;
 
 #[derive(Clone, Copy, PartialEq, Debug)]

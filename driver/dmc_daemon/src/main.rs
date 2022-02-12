@@ -1,20 +1,19 @@
-use btleplug::api::ValueNotification;
+use btleplug::api::Manager as _;
+use btleplug::platform::Manager;
 use dmc_daemon::ble_connection::Controller;
 use futures::stream::StreamExt;
 use futures::SinkExt;
 use std::error::Error;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast;
-use tokio::time::sleep;
-use tokio_stream::wrappers::IntervalStream;
+use tokio::time::{sleep, Duration};
 use tokio_tungstenite::{accept_async, tungstenite::Error as TError, WebSocketStream};
 use tungstenite::Message;
 
 use dmc::{ClientCommand, ClientUpdate};
 
 use dmc_daemon::{
-    ble_connection::FakeController, ble_spec::*, event_handling::*, state::ControllerState,
+    ble_connection::BluetoothConnectedController, event_handling::*, state::ControllerState,
 };
 
 #[derive(Debug)]
@@ -96,24 +95,23 @@ async fn ble_task(
     update_tx: broadcast::Sender<Vec<ClientUpdate>>,
     command_tx: broadcast::Sender<ClientCommand>,
 ) -> Result<(), BLETaskError> {
-    let interval = tokio::time::interval(Duration::from_secs(1));
-    let interval_stream = IntervalStream::new(interval);
-    let mut notification_stream = interval_stream.map(move |_| {
-        let ts = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        ValueNotification {
-            value: ts.to_ne_bytes()[0..5].to_vec(),
-            uuid: CLASSIC_CONTROL_CHARACTERISTIC_UUID,
-        }
-    });
-
     let mut command_rx = command_tx.subscribe();
 
     let mut controller_state = ControllerState::new();
 
-    let mut controller_handle = FakeController;
+    let manager = Manager::new().await.unwrap();
+
+    // get the first bluetooth adapter
+    let adapters = match manager.adapters().await {
+        Ok(adapters) => adapters,
+        Err(e) => panic!("Failed to get the first bluetooth adapter: {}", e),
+    };
+    let central = adapters.into_iter().nth(0).unwrap();
+
+    let mut controller_handle = BluetoothConnectedController::new(&central).await;
+    // let mut controller_handle = dmc_daemon::ble_connection::FakeController;
+
+    let mut notification_stream = controller_handle.update_stream().await;
 
     if controller_handle.is_connected().await {
         if update_tx.receiver_count() > 0 {
@@ -130,7 +128,7 @@ async fn ble_task(
                 }
             },
             Some(data) = notification_stream.next() => {
-                match on_ble_notification(&mut controller_state, data.uuid, data.value).await {
+                match on_ble_notification(&mut controller_state, data.uuid, data.value) {
                     Ok(Some(chain)) => {
                         if update_tx.receiver_count() > 0 {
                             println!("Emitting {} packed client updates to {} listeners", chain.len(), update_tx.receiver_count());
@@ -144,14 +142,12 @@ async fn ble_task(
                 }
             },
             _ = sleep(Duration::from_secs(10)) => {
-                // TODO check whether BLE connection is still up
                 if !controller_handle.is_connected().await {
                     if update_tx.receiver_count() > 0 {
                         update_tx.send(vec![ClientUpdate::Disconnected]).unwrap();
                     }
                 }
             }
-
         }
     }
 }
@@ -167,28 +163,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // start BLE thread
     let ble_thread = tokio::spawn(ble_task(update_tx.clone(), command_tx.clone()));
-
-    // let manager = Manager::new().await.unwrap();
-
-    // // get the first bluetooth adapter
-    // let adapters = manager.adapters().await?;
-    // let central = adapters.into_iter().nth(0).unwrap();
-
-    // let controller_peripheral = wait_for_motion_controller(&central).await;
-    // let _ = controller_peripheral.connect().await?;
-
-    // println!("We are connected :party:");
-    // println!("found characteristics:");
-
-    // for characteristic in controller_peripheral.characteristics().iter() {
-    //     controller_peripheral.subscribe(characteristic).await?;
-    // }
-
-    // for characteristic in controller_peripheral.characteristics().iter() {
-    //     controller_peripheral.unsubscribe(characteristic).await?;
-    // }
-
-    // let mut notification_stream = controller_peripheral.notifications().await?;
 
     #[cfg(target_family = "windows")]
     let _ = tokio::spawn(async {

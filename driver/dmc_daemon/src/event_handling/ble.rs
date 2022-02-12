@@ -3,7 +3,7 @@ use dmc::ClientUpdate;
 use std::error::Error;
 use uuid::Uuid;
 
-pub async fn on_ble_notification(
+pub fn on_ble_notification(
     controller_state: &mut ControllerState,
     uuid: Uuid,
     value: Vec<u8>,
