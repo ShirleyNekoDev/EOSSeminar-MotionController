@@ -163,7 +163,6 @@ pub fn build_classic_control_updates(
     let button_a = (button_byte & 1u8 << 0) == 0;
     let button_b = (button_byte & 1u8 << 1) == 0;
     let button_menu = (button_byte & 1u8 << 2) == 0;
-    println!("{} {} {}", button_a, button_b, button_menu);
 
     let mut updates: Vec<ClientUpdate> = Vec::new();
     {
