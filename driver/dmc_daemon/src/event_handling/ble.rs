@@ -163,7 +163,7 @@ async fn wait_for_motion_controller(central: &Adapter) -> Peripheral {
         services: vec![DIYMOTIONCONTROLLER_SERVICE_UUID],
     };
     println!("Starting a scan with filter {:?}", scan_filter);
-    central.start_scan(ScanFilter::default()).await.unwrap();
+    central.start_scan(scan_filter).await.unwrap();
     loop {
         match find_motion_controller(central).await {
             Some(peripheral) => {
