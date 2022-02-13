@@ -19,22 +19,24 @@ namespace {
 BLEServer *server;
 BLEService *dmc_service;
 
+} // namespace
+
 bool clientConnected = false;
 
 class MyServerCallbacks : public BLEServerCallbacks {
 public:
-  void onConnect(BLEServer *) override {
-    clientConnected = true;
+  void onConnect(BLEServer *) {
+    dmc::ble::clientConnected = true;
+    ESP_LOGD(TAG, "A client has connected to the controller.");
     // TODO initiate state change somehow
     // TODO send initial state
   }
-  void onDisconnect(BLEServer *server) override {
-    clientConnected = false;
-    server->startAdvertising();
+  void onDisconnect(BLEServer *server) {
+    dmc::ble::clientConnected = false;
+    BLEDevice::startAdvertising();
     // TODO initiate state change somehow
   }
 };
-}
 
 BLEService *get_dmc_service() { return dmc_service; }
 
@@ -46,14 +48,18 @@ void initialize() {
   server = BLEDevice::createServer();
 
   server->setCallbacks(new BLEServerCallbacks());
-  // TODO create services
+
   ESP_LOGD(TAG, "Creating DMC BLE Service with UUID %s", DMC_SERVICE_UUID);
   dmc_service = server->createService(DMC_SERVICE_UUID);
 }
 
 void start() {
   dmc_service->start();
-  server->getAdvertising()->start();
+
+  // advertise dmc service
+  BLEAdvertising *advertising = BLEDevice::getAdvertising();
+  advertising->addServiceUUID(DMC_SERVICE_UUID);
+  BLEDevice::startAdvertising();
 }
 
 DMCCharacteristic::DMCCharacteristic(const char *name, const char *uuid,
@@ -77,7 +83,9 @@ DMCCharacteristic::DMCCharacteristic(const char *name, const char *uuid,
 void DMCCharacteristic::write(uint8_t *data, size_t length) {
   ESP_LOGD(TAG, "Writing %i bytes to characteristic \"%s\"", length, name_);
   characteristic_->setValue(data, length);
-  if (clientConnected && properties_ & BLECharacteristic::PROPERTY_NOTIFY) {
+  if (server->getConnectedCount() > 0 &&
+      ((properties_ & BLECharacteristic::PROPERTY_NOTIFY) > 0)) {
+    ESP_LOGD(TAG, "Notifying characteristic \"%s\"", name_);
     characteristic_->notify();
   }
 }

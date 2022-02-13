@@ -101,7 +101,10 @@ bool read_status(Status &joystick_status) {
   }
 
   if (update_occurred && max_diff >= MIN_DIFF_SIGNIFICANT) {
-    ESP_LOGD(TAG, "An significant update of the joystick data occurred.");
+    // If the update was significant
+    last_x = new_x;
+    last_y = new_y;
+    ESP_LOGD(TAG, "A significant update of the joystick data occurred.");
     return true;
   }
 

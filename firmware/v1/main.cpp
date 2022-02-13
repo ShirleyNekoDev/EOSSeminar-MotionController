@@ -107,7 +107,7 @@ void loop() {
     }
   }
 
-  delay(100);
+  delay(10);
 
   // TODO build an abstraction for state management
   // TODO switch between device states CONNECTED and PAIRING in reaction to
