@@ -40,10 +40,10 @@ impl ControllerState {
         &mut self,
         button_a: ButtonState,
         button_b: ButtonState,
-        button_menu: ButtonState
+        button_menu: ButtonState,
     ) -> Vec<ClientUpdate> {
         let mut updates: Vec<ClientUpdate> = Vec::new();
-        
+
         if let Some(update) = self.button_a_state_transition(button_a) {
             updates.push(update);
         }
@@ -64,7 +64,9 @@ impl ControllerState {
                 ButtonState::DOWN => Some(ClientUpdate::ButtonADown),
                 ButtonState::UP => Some(ClientUpdate::ButtonAUp),
             }
-        } else { None }
+        } else {
+            None
+        }
     }
 
     fn button_b_state_transition(&mut self, new_value: ButtonState) -> Option<ClientUpdate> {
@@ -74,7 +76,9 @@ impl ControllerState {
                 ButtonState::DOWN => Some(ClientUpdate::ButtonBDown),
                 ButtonState::UP => Some(ClientUpdate::ButtonBUp),
             }
-        } else { None }
+        } else {
+            None
+        }
     }
 
     fn button_menu_state_transition(&mut self, new_value: ButtonState) -> Option<ClientUpdate> {
@@ -84,7 +88,9 @@ impl ControllerState {
                 ButtonState::DOWN => Some(ClientUpdate::ButtonMenuDown),
                 ButtonState::UP => Some(ClientUpdate::ButtonMenuUp),
             }
-        } else { None }
+        } else {
+            None
+        }
     }
 }
 
@@ -146,8 +152,8 @@ pub fn build_classic_control_updates(
     value: &Vec<u8>,
 ) -> Option<Vec<ClientUpdate>> {
     assert!(
-        value.len() == 5,
-        "ClassicControlsCharacteristic's value must be 5 bytes."
+        value.len() == 6,
+        "ClassicControlsCharacteristic's value must be 6 bytes."
     );
 
     let raw_x: u16 = u16::from_le_bytes(value.as_slice()[0..2].try_into().unwrap());
@@ -157,6 +163,7 @@ pub fn build_classic_control_updates(
     let button_a = (button_byte & 1u8 << 0) == 0;
     let button_b = (button_byte & 1u8 << 1) == 0;
     let button_menu = (button_byte & 1u8 << 2) == 0;
+    println!("{} {} {}", button_a, button_b, button_menu);
 
     let mut updates: Vec<ClientUpdate> = Vec::new();
     {
@@ -174,11 +181,11 @@ pub fn build_classic_control_updates(
     }
 
     // Update button data
-    controller_state.update_buttons(
+    updates.append(&mut controller_state.update_buttons(
         button_a.into(),
         button_b.into(),
-        button_menu.into()
-    );
+        button_menu.into(),
+    ));
 
     if updates.is_empty() {
         None

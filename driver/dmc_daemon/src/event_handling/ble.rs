@@ -1,19 +1,25 @@
 use crate::{
-    ble_spec::{CLASSIC_CONTROL_CHARACTERISTIC_UUID, FEEDBACK_CHARACTERISTIC_UUID, DIYMOTIONCONTROLLER_SERVICE_UUID},
-    state::ControllerState, utils::SenderUtils,
+    ble_spec::{
+        CLASSIC_CONTROL_CHARACTERISTIC_UUID, DIYMOTIONCONTROLLER_SERVICE_UUID,
+        FEEDBACK_CHARACTERISTIC_UUID,
+    },
+    state::ControllerState,
+    utils::SenderUtils,
 };
-use btleplug::{api::Manager as _, platform::Adapter, platform::Peripheral};
+use btleplug::api::{
+    Central, CharPropFlags, Characteristic, Peripheral as _, ScanFilter, WriteType,
+};
 use btleplug::platform::Manager;
+use btleplug::{api::Manager as _, platform::Adapter, platform::Peripheral};
 use dmc::{ClientCommand, ClientUpdate};
 use futures::stream::StreamExt;
-use std::{error::Error};
-use tokio::{sync::broadcast::{self}, time};
+use std::error::Error;
 use tokio::time::{sleep, Duration};
-use uuid::Uuid;
-use btleplug::api::{
-    Central, CharPropFlags, Characteristic, Peripheral as _, ScanFilter,
-    WriteType,
+use tokio::{
+    sync::broadcast::{self},
+    time,
 };
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub enum BLETaskError {
@@ -39,7 +45,6 @@ pub async fn start_bluetooth_device_handler(
     let adapter = init_bluetooth_adapter().await;
     handle_ble_device(command_tx, update_tx, adapter).await
 }
-
 
 async fn handle_ble_device(
     command_tx: broadcast::Sender<ClientCommand>,
@@ -68,6 +73,7 @@ async fn handle_ble_device(
                 }
             },
             Some(data) = notification_stream.next() => {
+                println!("Received notification from characteristic with UUID {}", data.uuid);
                 match pack_client_updates_for_ble_notification(&mut controller_state, data.uuid, data.value) {
                     Ok(Some(chain)) => {
                         println!("Emitting {} packed client updates to {} listeners", chain.len(), update_tx.receiver_count());
@@ -86,7 +92,9 @@ async fn handle_ble_device(
     }
     disconnect(&peripheral).await;
     if !is_connected(&peripheral).await {
-        update_tx.broadcast_update(ClientUpdate::Disconnected).unwrap();
+        update_tx
+            .broadcast_update(ClientUpdate::Disconnected)
+            .unwrap();
     }
     Err(BLETaskError::UnexpectedError)
 }
@@ -154,7 +162,8 @@ async fn wait_for_motion_controller(central: &Adapter) -> Peripheral {
     let scan_filter = ScanFilter {
         services: vec![DIYMOTIONCONTROLLER_SERVICE_UUID],
     };
-    central.start_scan(scan_filter).await.unwrap();
+    println!("Starting a scan with filter {:?}", scan_filter);
+    central.start_scan(ScanFilter::default()).await.unwrap();
     loop {
         match find_motion_controller(central).await {
             Some(peripheral) => {
@@ -205,7 +214,15 @@ async fn connect(peripheral: &Peripheral) {
     println!("We are connected :party:");
     for characteristic in peripheral.characteristics() {
         // Subscribe to all characteristics that are readable and notify.
+        println!(
+            "Looking at characteristic with UUID {}",
+            characteristic.uuid
+        );
         if is_subscribeable(&characteristic) {
+            println!(
+                "Subscribing characteristic with UUID {}",
+                characteristic.uuid
+            );
             peripheral.subscribe(&characteristic).await.unwrap();
         }
     }

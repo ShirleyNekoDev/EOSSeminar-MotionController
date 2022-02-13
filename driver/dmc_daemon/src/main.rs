@@ -1,6 +1,6 @@
-use std::net::SocketAddrV4;
-use std::{error::Error};
 use dmc_daemon::controller_mock::register_controller_mock;
+use std::error::Error;
+use std::net::SocketAddrV4;
 use tokio::sync::broadcast;
 
 use dmc::{ClientCommand, ClientUpdate};
@@ -23,13 +23,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // start BLE thread
     let ble_thread = tokio::spawn(ble::start_bluetooth_device_handler(
         command_tx.clone(),
-        update_tx.clone()
+        update_tx.clone(),
     ));
 
-    let mock_controller = tokio::spawn(register_controller_mock(
-        command_tx.clone(),
-        update_tx.clone()
-    ));
+    // let mock_controller = tokio::spawn(register_controller_mock(
+    //     command_tx.clone(),
+    //     update_tx.clone(),
+    // ));
 
     #[cfg(target_family = "windows")]
     let _ = tokio::spawn(async {
@@ -39,6 +39,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let _ = ws_thread.await?;
     let _ = ble_thread.await?;
-    let _ = mock_controller.await?;
+    // let _ = mock_controller.await?;
     Ok(())
 }
