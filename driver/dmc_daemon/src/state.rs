@@ -1,9 +1,18 @@
 use dmc::ClientUpdate;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-enum ButtonState {
+pub enum ButtonState {
     UP,
     DOWN,
+}
+
+impl Into<ButtonState> for bool {
+    fn into(self) -> ButtonState {
+        match self {
+            true => ButtonState::DOWN,
+            false => ButtonState::UP,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -27,52 +36,55 @@ impl ControllerState {
         self.joystick_state.into()
     }
 
-    // Returns whether or not the state was updated.
-    pub fn button_a_state_transition(&mut self, new_value: bool) -> Option<ClientUpdate> {
-        if new_value ^ (self.button_a_state == ButtonState::DOWN) {
-            // If the value changed.
-            if new_value {
-                self.button_a_state = ButtonState::DOWN;
-                return Some(ClientUpdate::ButtonADown);
-            } else {
-                self.button_a_state = ButtonState::UP;
-                return Some(ClientUpdate::ButtonAUp);
-            }
+    pub fn update_buttons(
+        &mut self,
+        button_a: ButtonState,
+        button_b: ButtonState,
+        button_menu: ButtonState
+    ) -> Vec<ClientUpdate> {
+        let mut updates: Vec<ClientUpdate> = Vec::new();
+        
+        if let Some(update) = self.button_a_state_transition(button_a) {
+            updates.push(update);
         }
-        // If the value did not change.
-        None
+        if let Some(update) = self.button_b_state_transition(button_b) {
+            updates.push(update);
+        }
+        if let Some(update) = self.button_menu_state_transition(button_menu) {
+            updates.push(update);
+        }
+
+        updates
     }
 
-    // Returns whether or not the state was updated.
-    pub fn button_b_state_transition(&mut self, new_value: bool) -> Option<ClientUpdate> {
-        if new_value ^ (self.button_b_state == ButtonState::DOWN) {
-            // If the value changed.
-            if new_value {
-                self.button_b_state = ButtonState::DOWN;
-                return Some(ClientUpdate::ButtonBDown);
-            } else {
-                self.button_b_state = ButtonState::UP;
-                return Some(ClientUpdate::ButtonBUp);
+    fn button_a_state_transition(&mut self, new_value: ButtonState) -> Option<ClientUpdate> {
+        if self.button_a_state != new_value {
+            self.button_a_state = new_value;
+            match new_value {
+                ButtonState::DOWN => Some(ClientUpdate::ButtonADown),
+                ButtonState::UP => Some(ClientUpdate::ButtonAUp),
             }
-        }
-        // If the value did not change.
-        None
+        } else { None }
     }
 
-    // Returns whether or not the state was updated.
-    pub fn button_menu_state_transition(&mut self, new_value: bool) -> Option<ClientUpdate> {
-        if new_value ^ (self.button_menu_state == ButtonState::DOWN) {
-            // If the value changed.
-            if new_value {
-                self.button_menu_state = ButtonState::DOWN;
-                return Some(ClientUpdate::ButtonMenuDown);
-            } else {
-                self.button_menu_state = ButtonState::UP;
-                return Some(ClientUpdate::ButtonMenuUp);
+    fn button_b_state_transition(&mut self, new_value: ButtonState) -> Option<ClientUpdate> {
+        if self.button_b_state != new_value {
+            self.button_b_state = new_value;
+            match new_value {
+                ButtonState::DOWN => Some(ClientUpdate::ButtonBDown),
+                ButtonState::UP => Some(ClientUpdate::ButtonBUp),
             }
-        }
-        // If the value did not change.
-        None
+        } else { None }
+    }
+
+    fn button_menu_state_transition(&mut self, new_value: ButtonState) -> Option<ClientUpdate> {
+        if self.button_menu_state != new_value {
+            self.button_menu_state = new_value;
+            match new_value {
+                ButtonState::DOWN => Some(ClientUpdate::ButtonMenuDown),
+                ButtonState::UP => Some(ClientUpdate::ButtonMenuUp),
+            }
+        } else { None }
     }
 }
 
@@ -162,15 +174,11 @@ pub fn build_classic_control_updates(
     }
 
     // Update button data
-    if let Some(update) = controller_state.button_a_state_transition(button_a) {
-        updates.push(update);
-    }
-    if let Some(update) = controller_state.button_b_state_transition(button_b) {
-        updates.push(update);
-    }
-    if let Some(update) = controller_state.button_menu_state_transition(button_menu) {
-        updates.push(update);
-    }
+    controller_state.update_buttons(
+        button_a.into(),
+        button_b.into(),
+        button_menu.into()
+    );
 
     if updates.is_empty() {
         None

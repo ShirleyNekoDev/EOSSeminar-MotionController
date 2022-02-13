@@ -1,9 +1,97 @@
-use crate::{ble_spec::CLASSIC_CONTROL_CHARACTERISTIC_UUID, state::ControllerState};
-use dmc::ClientUpdate;
-use std::error::Error;
+use crate::{
+    ble_spec::{CLASSIC_CONTROL_CHARACTERISTIC_UUID, FEEDBACK_CHARACTERISTIC_UUID, DIYMOTIONCONTROLLER_SERVICE_UUID},
+    state::ControllerState, utils::SenderUtils,
+};
+use btleplug::{api::Manager as _, platform::Adapter, platform::Peripheral};
+use btleplug::platform::Manager;
+use dmc::{ClientCommand, ClientUpdate};
+use futures::stream::StreamExt;
+use std::{error::Error};
+use tokio::{sync::broadcast::{self}, time};
+use tokio::time::{sleep, Duration};
 use uuid::Uuid;
+use btleplug::api::{
+    Central, CharPropFlags, Characteristic, Peripheral as _, ScanFilter,
+    WriteType,
+};
 
-pub fn on_ble_notification(
+#[derive(Debug)]
+pub enum BLETaskError {
+    UnexpectedError,
+}
+
+async fn init_bluetooth_adapter() -> Adapter {
+    let manager = Manager::new().await.unwrap();
+
+    // get the first bluetooth adapter
+    let adapters = match manager.adapters().await {
+        Ok(adapters) => adapters,
+        Err(e) => panic!("Failed to get the first bluetooth adapter: {}", e),
+    };
+    let central = adapters.into_iter().nth(0).unwrap();
+    central
+}
+
+pub async fn start_bluetooth_device_handler(
+    command_tx: broadcast::Sender<ClientCommand>,
+    update_tx: broadcast::Sender<Vec<ClientUpdate>>,
+) -> Result<(), BLETaskError> {
+    let adapter = init_bluetooth_adapter().await;
+    handle_ble_device(command_tx, update_tx, adapter).await
+}
+
+
+async fn handle_ble_device(
+    command_tx: broadcast::Sender<ClientCommand>,
+    update_tx: broadcast::Sender<Vec<ClientUpdate>>,
+    adapter: Adapter,
+) -> Result<(), BLETaskError> {
+    let mut controller_state = ControllerState::new();
+
+    let peripheral = wait_for_motion_controller(&adapter).await;
+
+    let mut command_rx = command_tx.subscribe();
+
+    let mut notification_stream = peripheral.notifications().await.unwrap();
+
+    connect(&peripheral).await;
+    if is_connected(&peripheral).await {
+        update_tx.broadcast_update(ClientUpdate::Connected).unwrap();
+    }
+
+    loop {
+        tokio::select! {
+            Ok(command) = command_rx.recv() => {
+                match notify_ble_for_client_command(&mut controller_state, &peripheral, command).await {
+                    Ok(_) => {},
+                    Err(_) => break,
+                }
+            },
+            Some(data) = notification_stream.next() => {
+                match pack_client_updates_for_ble_notification(&mut controller_state, data.uuid, data.value) {
+                    Ok(Some(chain)) => {
+                        println!("Emitting {} packed client updates to {} listeners", chain.len(), update_tx.receiver_count());
+                        update_tx.broadcast_updates(chain).unwrap();
+                    },
+                    Ok(None) => (),
+                    Err(_) => break,
+                }
+            },
+            _ = sleep(Duration::from_secs(10)) => {
+                if !is_connected(&peripheral).await {
+                    update_tx.broadcast_update(ClientUpdate::Disconnected).unwrap();
+                }
+            }
+        }
+    }
+    disconnect(&peripheral).await;
+    if !is_connected(&peripheral).await {
+        update_tx.broadcast_update(ClientUpdate::Disconnected).unwrap();
+    }
+    Err(BLETaskError::UnexpectedError)
+}
+
+fn pack_client_updates_for_ble_notification(
     controller_state: &mut ControllerState,
     uuid: Uuid,
     value: Vec<u8>,
@@ -27,4 +115,120 @@ pub fn on_ble_notification(
         uuid, value
     );
     Ok(None)
+}
+
+async fn notify_ble_for_client_command(
+    _controller_state: &mut ControllerState,
+    peripheral: &Peripheral,
+    command: ClientCommand,
+) -> Result<(), Box<dyn Error>> {
+    // TODO update the controller state somehow (as of now it does not hold Feedback information
+    // TODO implement the commands
+    match command {
+        ClientCommand::LedSet { r, g, b } => {
+            let new_value: Vec<u8> = vec![r, g, b];
+            write(peripheral, &FEEDBACK_CHARACTERISTIC_UUID, &new_value).await;
+            println!(
+                "Setting RGB led to r={} g={} b={}",
+                new_value[0], new_value[1], new_value[2]
+            );
+        }
+        ClientCommand::RumbleStop => {
+            println!("The RumbleStop command ist not implement yet.");
+        }
+        ClientCommand::RumbleStart => {
+            println!("The RumbleStart command ist not implement yet.");
+        }
+        ClientCommand::RumbleBurst { length } => {
+            println!(
+                "The RumbleBurst command ist not implement yet. (tried to burst with length {})",
+                length
+            );
+        }
+    }
+    Ok(())
+}
+
+async fn wait_for_motion_controller(central: &Adapter) -> Peripheral {
+    // start scanning for devices
+    let scan_filter = ScanFilter {
+        services: vec![DIYMOTIONCONTROLLER_SERVICE_UUID],
+    };
+    central.start_scan(scan_filter).await.unwrap();
+    loop {
+        match find_motion_controller(central).await {
+            Some(peripheral) => {
+                return peripheral;
+            }
+            None => {
+                time::sleep(Duration::from_secs(5)).await;
+            }
+        }
+    }
+}
+async fn find_motion_controller(central: &Adapter) -> Option<Peripheral> {
+    for peripheral in central.peripherals().await.unwrap() {
+        let properties = peripheral.properties().await.unwrap().unwrap();
+        let maybe_name = properties.local_name;
+        if maybe_name == Some(String::from("DIYMotionController")) {
+            println!("Found device at {:?}", properties.address);
+            return Some(peripheral);
+        }
+    }
+    return None;
+}
+
+async fn write(peripheral: &Peripheral, characteristic_uuid: &uuid::Uuid, value: &Vec<u8>) {
+    // find the correct characteristic
+    match peripheral
+        .characteristics()
+        .into_iter()
+        .find(|e| e.uuid == *characteristic_uuid)
+    {
+        Some(characteristic) => peripheral
+            .write(
+                &characteristic,
+                value.as_slice(),
+                WriteType::WithoutResponse,
+            )
+            .await
+            .unwrap(),
+        None => println!(
+            "Did not find characteristic with uuid {}",
+            characteristic_uuid
+        ),
+    }
+}
+
+async fn connect(peripheral: &Peripheral) {
+    peripheral.connect().await.unwrap();
+    println!("We are connected :party:");
+    for characteristic in peripheral.characteristics() {
+        // Subscribe to all characteristics that are readable and notify.
+        if is_subscribeable(&characteristic) {
+            peripheral.subscribe(&characteristic).await.unwrap();
+        }
+    }
+}
+async fn disconnect(peripheral: &Peripheral) {
+    for characteristic in peripheral.characteristics() {
+        if is_subscribeable(&characteristic) {
+            match peripheral.unsubscribe(&characteristic).await {
+                Ok(()) => {}
+                Err(_) => {}
+            }
+        }
+    }
+    peripheral.disconnect().await.unwrap();
+}
+
+fn is_subscribeable(characteristic: &Characteristic) -> bool {
+    !(characteristic.properties & (CharPropFlags::READ | CharPropFlags::NOTIFY)).is_empty()
+}
+
+async fn is_connected(peripheral: &Peripheral) -> bool {
+    match peripheral.is_connected().await {
+        Ok(is_connected) => is_connected,
+        Err(_) => false,
+    }
 }

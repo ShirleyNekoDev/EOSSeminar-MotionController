@@ -148,9 +148,7 @@
           dateNow.getMinutes().toString().padStart(2, "0")
         }:${
           dateNow.getSeconds().toString().padStart(2, "0")
-        }] ${command}${JSON.stringify(
-          payload
-        )}`;
+        }] ${command}${payload ? JSON.stringify(payload) : ""}`;
         wsOutput.appendChild(logEntry);
         logEntry.scrollIntoView();
 
