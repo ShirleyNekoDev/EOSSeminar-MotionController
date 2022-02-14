@@ -113,8 +113,7 @@ pub struct JoystickState {
 }
 
 fn unpack_float(packed_f16: u16) -> f32 {
-    let h: u32 = packed_f16.into();
-    f32::from_bits(((h & 0x8000) << 16) | (((h & 0x7c00) + 0x1C000) << 13) | ((h & 0x03FF) << 13))
+    (packed_f16 as f32 / (((1 << 16) - 1) as f32) * 2.0) - 1.0
 }
 
 impl JoystickState {
