@@ -44,6 +44,8 @@ void calibrate() {
   y_norm_factor[0] = 1.0f / (ADC_MIN_VALUE - y_offset); // negative
   y_norm_factor[1] = 1.0f / (ADC_MAX_VALUE + y_offset); // positive
   ESP_LOGD(TAG, "Joystick calibration done.");
+
+  ESP_LOGD(TAG, "OFFSETS: %i %i (max = %i)", x_raw, y_raw, ADC_MAX_VALUE);
 }
 
 } // namespace
@@ -55,8 +57,19 @@ void start() {
 
 void refresh() {
   ESP_LOGV(TAG, "Refreshing joystick data.");
-  x_raw = analogRead(PIN_JOYSTICK_X);
-  y_raw = analogRead(PIN_JOYSTICK_Y);
+  // Multisampling to reduce noise
+  x_raw = 0;
+  x_raw += analogRead(PIN_JOYSTICK_X);
+  x_raw += analogRead(PIN_JOYSTICK_X);
+  x_raw += analogRead(PIN_JOYSTICK_X);
+  x_raw += analogRead(PIN_JOYSTICK_X);
+  x_raw /= 4;
+  y_raw = 0;
+  y_raw += analogRead(PIN_JOYSTICK_Y);
+  y_raw += analogRead(PIN_JOYSTICK_Y);
+  y_raw += analogRead(PIN_JOYSTICK_Y);
+  y_raw += analogRead(PIN_JOYSTICK_Y);
+  y_raw /= 4;
 }
 
 float get_x() {
@@ -70,6 +83,7 @@ float get_y() {
 }
 
 bool read_status(Status &joystick_status) {
+  static int _calls = 0;
   ESP_LOGV(TAG, "Reading joystick data to status.");
 
   static float last_x = 0;
@@ -80,31 +94,49 @@ bool read_status(Status &joystick_status) {
 
   ESP_LOGV(TAG, "Read data:\t%f\t%f", new_x, new_y);
 
-  uint16_t new_x_packed = pack_float(new_x);
-  uint16_t new_y_packed = pack_float(new_y);
-
   float max_diff = fabs(new_x - last_x);
   if (max_diff < fabs(new_y - last_y))
     max_diff = fabs(new_y - last_y);
 
-  bool update_occurred = false;
-  if (joystick_status.x != new_x) {
-    ESP_LOGV(TAG, "X updated: old: %i new: %i", joystick_status.x, new_x);
-    joystick_status.x = new_x_packed;
-    update_occurred = true;
+  // Aggressive filtering of 1.0 readings
+  if (new_x > 1.0 || new_y > 1.0)
+    return false;
+
+  static uint8_t maxed_out_samples[2] = {0, 0};
+  if (new_x >= 1.0) {
+    if (++maxed_out_samples[0] < 5) {
+      new_x = last_x;
+    }
+  } else {
+    maxed_out_samples[0] = 0;
+  }
+  if (new_y >= 1.0) {
+    if (++maxed_out_samples[1] < 5) {
+      new_y = last_y;
+    }
+  } else {
+    maxed_out_samples[1] = 0;
   }
 
-  if (joystick_status.y != new_y) {
-    ESP_LOGV(TAG, "Y updated: old: %i new: %i", joystick_status.y, new_y);
-    joystick_status.y = new_y_packed;
-    update_occurred = true;
-  }
+  if (last_x >= -0.1 && last_x <= 0.1 && new_x >= 1.0)
+    return false;
+  if (last_y >= -0.1 && last_y <= 0.1 && new_y >= 1.0)
+    return false;
 
-  if (update_occurred && max_diff >= MIN_DIFF_SIGNIFICANT) {
+  // Apparently the ADC sometimes reads garbage values or BLE notifications
+  // are dropped, so we have to occasionally have to send the valid
+  // data, even if in theory they have not updated.
+  if ((max_diff >= MIN_DIFF_SIGNIFICANT) || (++_calls % 128 == 0)) {
     // If the update was significant
+    if (new_x >= 1.0 || new_y >= 1.0) {
+      ESP_LOGW(TAG, "Suspicious values of joystick: %f %f", new_x, new_y);
+    }
     last_x = new_x;
     last_y = new_y;
-    ESP_LOGD(TAG, "A significant update of the joystick data occurred.");
+    joystick_status.x = pack_float(new_x);
+    joystick_status.y = pack_float(new_y);
+    if (_calls % 128 != 0)
+      ESP_LOGD(TAG, "A significant update of the joystick data occurred.");
     return true;
   }
 
