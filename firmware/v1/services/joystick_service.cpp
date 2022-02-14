@@ -98,39 +98,11 @@ bool read_status(Status &joystick_status) {
   if (max_diff < fabs(new_y - last_y))
     max_diff = fabs(new_y - last_y);
 
-  // Aggressive filtering of 1.0 readings
-  if (new_x > 1.0 || new_y > 1.0)
-    return false;
-
-  static uint8_t maxed_out_samples[2] = {0, 0};
-  if (new_x >= 1.0) {
-    if (++maxed_out_samples[0] < 5) {
-      new_x = last_x;
-    }
-  } else {
-    maxed_out_samples[0] = 0;
-  }
-  if (new_y >= 1.0) {
-    if (++maxed_out_samples[1] < 5) {
-      new_y = last_y;
-    }
-  } else {
-    maxed_out_samples[1] = 0;
-  }
-
-  if (last_x >= -0.1 && last_x <= 0.1 && new_x >= 1.0)
-    return false;
-  if (last_y >= -0.1 && last_y <= 0.1 && new_y >= 1.0)
-    return false;
-
   // Apparently the ADC sometimes reads garbage values or BLE notifications
   // are dropped, so we have to occasionally have to send the valid
   // data, even if in theory they have not updated.
   if ((max_diff >= MIN_DIFF_SIGNIFICANT) || (++_calls % 128 == 0)) {
     // If the update was significant
-    if (new_x >= 1.0 || new_y >= 1.0) {
-      ESP_LOGW(TAG, "Suspicious values of joystick: %f %f", new_x, new_y);
-    }
     last_x = new_x;
     last_y = new_y;
     joystick_status.x = pack_float(new_x);
