@@ -5,14 +5,14 @@
 #define PIN_I2C_SDA 9
 #define PIN_I2C_SCL 10
 
-#define PIN_JOYSTICK_X 0
+#define PIN_JOYSTICK_X 2
 #define PIN_JOYSTICK_Y 1
 
 #define PIN_LED_R 3
 #define PIN_LED_G 4
 #define PIN_LED_B 5
 
-#define PIN_BUTTON_MENU 2
+#define PIN_BUTTON_MENU 18
 #define PIN_BUTTON_A 7
 #define PIN_BUTTON_B 8
 

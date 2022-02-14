@@ -70,12 +70,12 @@ Battery Service -> Battery Level
 
 - I2C SDA: IO9 (tested)
 - I2C SCL: I010 (tested)
-- JOYSTICK_X: IO0/ADC1_CH0
+- JOYSTICK_X: IO2/ADC1_CH2
 - JOYSTICK_Y: IO1/ADC1_CH1
 - LED_R: IO3 (fixed)
 - LED_G: IO4 (fixed)
 - LED_B: IO5 (fixed)
-- BUTTON_MENU: IO2 (RTC pin, wake from deep sleep possible)
+- BUTTON_MENU: IO18
 - BUTTON_A: IO7
 - BUTTON_B: IO8
 - RUMBLE_CONTROL: IO6
