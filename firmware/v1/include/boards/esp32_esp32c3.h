@@ -22,4 +22,7 @@
 #define ADC_BIT_RESOLUTION 12
 #define BOARD_BAUDRATE 115200
 
+#define INVERT_X_AXIS false
+#define INVERT_Y_AXIS false
+
 #endif

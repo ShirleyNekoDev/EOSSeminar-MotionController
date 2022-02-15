@@ -89,8 +89,8 @@ bool read_status(Status &joystick_status) {
   static float last_x = 0;
   static float last_y = 0;
 
-  float new_x = get_x();
-  float new_y = get_y();
+  float new_x = get_x() * (INVERT_X_AXIS ? -1.0 : 1.0);
+  float new_y = get_y() * (INVERT_Y_AXIS ? -1.0 : 1.0);
 
   ESP_LOGV(TAG, "Read data:\t%f\t%f", new_x, new_y);
 
