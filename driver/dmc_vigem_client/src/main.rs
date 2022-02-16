@@ -154,7 +154,7 @@ fn main() {
                                 assert!(controller.is_attached());
                                 println!("Controller right joystick update: x={}, y={}", x, y);
                                 gamepad.thumb_rx = map_to_i16(x);
-                                gamepad.thumb_ry = map_to_i16(y);
+                                gamepad.thumb_ry = -map_to_i16(y);
                                 controller.update(&gamepad).unwrap();
                             },
                             _ => {

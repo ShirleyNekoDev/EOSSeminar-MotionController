@@ -80,7 +80,10 @@ async fn handle_ble_device(
                         update_tx.broadcast_updates(chain).unwrap();
                     },
                     Ok(None) => (),
-                    Err(_) => break,
+                    Err(e) => {
+                        println!("Error while receiving BLE notification: {}", e);
+                        break
+                    },
                 }
             },
             _ = sleep(Duration::from_secs(10)) => {
@@ -211,7 +214,9 @@ async fn write(peripheral: &Peripheral, characteristic_uuid: &uuid::Uuid, value:
 
 async fn connect(peripheral: &Peripheral) {
     peripheral.connect().await.unwrap();
-    println!("We are connected :party:");
+    println!("We are connected to the BLE peripheral");
+    peripheral.discover_services().await.unwrap();
+    println!("We have discovered services");
     for characteristic in peripheral.characteristics() {
         // Subscribe to all characteristics that are readable and notify.
         println!(
@@ -241,6 +246,7 @@ async fn disconnect(peripheral: &Peripheral) {
 
 fn is_subscribeable(characteristic: &Characteristic) -> bool {
     !(characteristic.properties & (CharPropFlags::READ | CharPropFlags::NOTIFY)).is_empty()
+        && [CLASSIC_CONTROL_CHARACTERISTIC_UUID, FEEDBACK_CHARACTERISTIC_UUID].contains(&characteristic.uuid)
 }
 
 async fn is_connected(peripheral: &Peripheral) -> bool {

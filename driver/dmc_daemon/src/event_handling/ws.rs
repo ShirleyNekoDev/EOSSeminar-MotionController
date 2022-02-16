@@ -49,6 +49,12 @@ async fn handle_websocket_client(
     let mut update_rx = update_tx.subscribe();
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
 
+    let update_pack = serde_json::to_string(&vec![ClientUpdate::Connected]).unwrap();
+    match ws_sender.send(Message::text(update_pack)).await {
+        Ok(()) => (),
+        Err(_) => return Err(WebSocketTaskError::UnexpectedError),
+    };
+
     loop {
         tokio::select! {
             result = update_rx.recv() => {

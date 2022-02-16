@@ -164,11 +164,11 @@ pub fn build_classic_control_updates(
     let button_menu = (button_byte & 1u8 << 2) == 0;
 
     let mut updates: Vec<ClientUpdate> = Vec::new();
-    {
-        // TODO: temporary - remove
-        let update: ClientUpdate = ClientUpdate::BatteryStatusChanged { charge: value[0] };
-        updates.push(update);
-    }
+    // {
+    //     // TODO: temporary - remove
+    //     let update: ClientUpdate = ClientUpdate::BatteryStatusChanged { charge: value[0] };
+    //     updates.push(update);
+    // }
 
     // Update joystick data
     let joystick_data_read = JoystickState::from_raw_f16s(raw_x, raw_y).clamped();
